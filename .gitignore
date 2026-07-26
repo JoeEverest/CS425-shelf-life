@@ -1,4 +1,5 @@
 ops
 .DS_Store
-*.html
 docs/adr/
+docs/*.html
+.env

@@ -1,0 +1,37 @@
+{
+	"name": "db",
+	"version": "0.0.1",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./env": {
+			"types": "./dist/env.d.ts",
+			"default": "./dist/env.js"
+		},
+		"./schema": {
+			"types": "./dist/schema.d.ts",
+			"default": "./dist/schema.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"type-check": "tsc --noEmit",
+		"test": "bun test ./test",
+		"generate": "drizzle-kit generate",
+		"migrate": "drizzle-kit migrate",
+		"seed": "bun --env-file=../.env run src/seed.ts"
+	},
+	"dependencies": {
+		"drizzle-orm": "^0.44.5",
+		"postgres": "^3.4.7",
+		"zod": "^4.1.12"
+	},
+	"devDependencies": {
+		"drizzle-kit": "^0.31.4"
+	}
+}

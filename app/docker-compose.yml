@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: shelflife
+      POSTGRES_USER: shelflife
+      POSTGRES_PASSWORD: shelflife
+    ports:
+      - "5433:5432"
+    volumes:
+      - shelflife_postgres_data:/var/lib/postgresql/data
+      - ./db/docker/create-test-database.sql:/docker-entrypoint-initdb.d/01-create-test-database.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shelflife -d shelflife"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  shelflife_postgres_data:
