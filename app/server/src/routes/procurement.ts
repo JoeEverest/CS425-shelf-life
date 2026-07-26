@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import {
 	archivedFilterSchema,
+	goodsReceiptCreateSchema,
 	PERMISSIONS,
 	purchaseOrderCreateSchema,
 	purchaseOrderStatusQuerySchema,
@@ -12,6 +13,7 @@ import type { AppEnv } from "../auth-context";
 import { auth } from "../middleware/auth";
 import { rbac } from "../middleware/rbac";
 import { zodJson, zodParams, zodQuery } from "../middleware/validate";
+import { hasPermission } from "../rules/authorization";
 import type { AuthService } from "../services/auth-service";
 import type { ProcurementService } from "../services/procurement-service";
 
@@ -112,6 +114,26 @@ export function createPurchaseOrderRoutes(
 					await procurementService.getPurchaseOrder(
 						context.req.valid("param").id,
 					),
+				),
+		)
+		.post(
+			"/:id/receipts",
+			auth(authService),
+			rbac(PERMISSIONS.DELIVERIES_SIGN_OFF),
+			zodParams(resourceIdParamsSchema),
+			zodJson(goodsReceiptCreateSchema),
+			async (context) =>
+				context.json(
+					await procurementService.receiveDelivery(
+						context.req.valid("param").id,
+						context.req.valid("json"),
+						context.get("authUser").id,
+						hasPermission(
+							context.get("authUser").roles,
+							PERMISSIONS.DELIVERIES_CONFIRM_DISCREPANCY,
+						),
+					),
+					201,
 				),
 		);
 }

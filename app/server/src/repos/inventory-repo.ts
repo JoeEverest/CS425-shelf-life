@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { Database } from "db";
-import { products, stockLevels, stockMovements } from "db/schema";
+import { products, stockLevels, stockMovements, stores } from "db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import type { StockAdjustmentInput } from "shared";
+import { qualifyingStockMovementInConfiguredWindow } from "./stock-velocity-query";
 
 export class InsufficientStockRepoError extends Error {}
 export class ProductStockNotFoundRepoError extends Error {}
@@ -30,6 +31,27 @@ export class InventoryRepo {
 		}
 
 		return baseQuery.where(eq(products.archived, false)).orderBy(products.name);
+	}
+
+	listStockAlertInputs() {
+		return this.database
+			.select({
+				productId: products.id,
+				sku: products.sku,
+				name: products.name,
+				qtyUnits: stockLevels.qtyUnits,
+				saleUnitName: products.saleUnitName,
+				unitsSoldInWindow: sql<number>`coalesce(sum(-${stockMovements.deltaUnits}), 0)::double precision`,
+				movementCount: sql<number>`count(${stockMovements.id})::int`,
+				windowDays: stores.velocityWindowDays,
+				coverDays: stores.lowStockCoverDays,
+			})
+			.from(products)
+			.innerJoin(stockLevels, eq(stockLevels.productId, products.id))
+			.innerJoin(stores, sql`true`)
+			.leftJoin(stockMovements, qualifyingStockMovementInConfiguredWindow)
+			.where(eq(products.archived, false))
+			.groupBy(products.id, stockLevels.productId, stores.id);
 	}
 
 	async adjustStock(input: StockAdjustmentInput, actorId: string) {

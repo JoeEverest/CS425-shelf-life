@@ -14,6 +14,7 @@ import {
 	PageHeader,
 	Qty,
 } from "@/components/bits";
+import { ReceiveDialog } from "@/components/ReceiveDialog";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -304,9 +305,12 @@ function PoDetailDialog({ poId, label }: { poId: string; label: string }) {
 export default function PurchaseOrdersPage() {
 	const me = useMe();
 	const orders = usePurchaseOrders();
-	const canCreate = can(
-		me.data?.roles ?? [],
-		PERMISSIONS.PURCHASE_ORDERS_CREATE,
+	const roles = me.data?.roles ?? [];
+	const canCreate = can(roles, PERMISSIONS.PURCHASE_ORDERS_CREATE);
+	const canReceive = can(roles, PERMISSIONS.DELIVERIES_SIGN_OFF);
+	const canConfirmDiscrepancy = can(
+		roles,
+		PERMISSIONS.DELIVERIES_CONFIRM_DISCREPANCY,
 	);
 
 	return (
@@ -352,7 +356,15 @@ export default function PurchaseOrdersPage() {
 								</TableCell>
 								<TableCell>{STATUS_LABELS[order.status]}</TableCell>
 								<TableCell className="text-right">
-									<PoDetailDialog poId={order.id} label="View" />
+									<div className="flex justify-end gap-2">
+										{canReceive && order.status !== "received" ? (
+											<ReceiveDialog
+												poId={order.id}
+												canConfirmDiscrepancy={canConfirmDiscrepancy}
+											/>
+										) : null}
+										<PoDetailDialog poId={order.id} label="View" />
+									</div>
 								</TableCell>
 							</TableRow>
 						))}

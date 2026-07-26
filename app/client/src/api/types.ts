@@ -97,6 +97,35 @@ export type PurchaseOrderDetail = {
 		bulkUnitName: string;
 		qtyBulk: number;
 		bulkCostAtOrder: string;
+		receivedSoFar?: number;
+		remaining?: number;
+	}>;
+};
+
+export type SaleSummary = {
+	id: string;
+	soldAt: string;
+	type: "cash" | "credit";
+	total: string;
+	totalProfit: string;
+	lineCount: number;
+};
+
+export type SaleDetail = {
+	id: string;
+	soldAt: string;
+	type: "cash" | "credit";
+	total: string;
+	totalProfit: string;
+	lines: Array<{
+		id: string;
+		productId: string;
+		productName: string;
+		sku: string;
+		qtyUnits: number;
+		saleUnitName?: string;
+		unitPriceAtSale: string;
+		lineProfit: string;
 	}>;
 };
 
@@ -115,4 +144,71 @@ export type FinancialReport = {
 	expensesTotal: string;
 	expensesByCategory: Record<string, string>;
 	netProfit: string;
+};
+
+export type StockAlert = {
+	productId: string;
+	sku: string;
+	name: string;
+	qtyUnits: number;
+	saleUnitName: string;
+	velocityPerDay: string;
+	daysToStockout: string | null;
+	low: boolean;
+	hasHistory: boolean;
+};
+
+export type Customer = {
+	id: string;
+	name: string;
+	phone: string | null;
+	outstandingBalance: string;
+};
+
+export type Invoice = {
+	id: string;
+	customerId: string;
+	customerName: string;
+	total: string;
+	balance: string;
+	issuedAt: string;
+	saleId: string;
+};
+
+export type InvoiceDetail = Invoice & {
+	payments: Array<{
+		id: string;
+		amount: string;
+		paidAt: string;
+	}>;
+};
+
+export type Projection = {
+	productId: string;
+	sku: string;
+	name: string;
+	qtyUnits: number;
+	saleUnitName: string;
+	velocityPerDay: string;
+	daysToStockout: string | null;
+	hasHistory: boolean;
+};
+
+export type Dashboard = {
+	salesTotal: string;
+	salesProfit: string;
+	salesCount: number;
+	expensesTotal: string;
+	netProfit: string;
+	supplierPayable: string;
+	customerReceivable: string;
+	lowStockCount: number;
+	topProducts: Array<{
+		productId: string;
+		name: string;
+		sku: string;
+		unitsSold: number;
+		revenue: string;
+		profit: string;
+	}>;
 };

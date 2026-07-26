@@ -7,14 +7,22 @@ import {
 import { type ApiError, api } from "./client";
 import type {
 	Category,
+	Customer,
+	Dashboard,
 	Employee,
 	Expense,
 	FinancialReport,
+	Invoice,
+	InvoiceDetail,
 	Me,
 	PriceChange,
 	Product,
+	Projection,
 	PurchaseOrderDetail,
 	PurchaseOrderSummary,
+	SaleDetail,
+	SaleSummary,
+	StockAlert,
 	StockRow,
 	Store,
 	Supplier,
@@ -309,6 +317,127 @@ export function useCreatePurchaseOrder() {
 			lines: Array<{ productId: string; qtyBulk: number }>;
 		}) => api.post<PurchaseOrderDetail>("/api/purchase-orders", body),
 	);
+}
+
+export type ReceiptPayment =
+	| { kind: "immediate" }
+	| { kind: "deferred" }
+	| { kind: "partial"; amount: string };
+
+export function useReceiveDelivery() {
+	return useInvalidatingMutation(
+		[["purchase-orders"], ["stock"], ["suppliers"], ["products"]],
+		({
+			poId,
+			...body
+		}: {
+			poId: string;
+			lines: Array<{ poLineId: string; qtyBulkReceived: number }>;
+			payment: ReceiptPayment;
+			discrepancyNote?: string;
+			discrepancyConfirmed?: boolean;
+		}) => api.post(`/api/purchase-orders/${poId}/receipts`, body),
+	);
+}
+
+// ---- sales (POS) ------------------------------------------------------------
+
+export function useSales() {
+	return useQuery<SaleSummary[], ApiError>({
+		queryKey: ["sales"],
+		queryFn: () => api.get<SaleSummary[]>("/api/sales"),
+	});
+}
+
+export function useSale(id: string | null) {
+	return useQuery<SaleDetail, ApiError>({
+		queryKey: ["sales", id],
+		queryFn: () => api.get<SaleDetail>(`/api/sales/${id}`),
+		enabled: id !== null,
+	});
+}
+
+export function useRecordSale() {
+	return useInvalidatingMutation(
+		[["sales"], ["stock"], ["products"], ["invoices"], ["customers"]],
+		(
+			body:
+				| {
+						type: "cash";
+						lines: Array<{ productId: string; qtyUnits: number }>;
+				  }
+				| {
+						type: "credit";
+						customerId: string;
+						lines: Array<{ productId: string; qtyUnits: number }>;
+				  },
+		) => api.post<SaleDetail>("/api/sales", body),
+	);
+}
+
+// ---- low-stock alerts -------------------------------------------------------
+
+export function useStockAlerts() {
+	return useQuery<StockAlert[], ApiError>({
+		queryKey: ["stock", "alerts"],
+		queryFn: () => api.get<StockAlert[]>("/api/stock/alerts"),
+	});
+}
+
+// ---- customers, invoices, payments ------------------------------------------
+
+export function useCustomers() {
+	return useQuery<Customer[], ApiError>({
+		queryKey: ["customers"],
+		queryFn: () => api.get<Customer[]>("/api/customers"),
+	});
+}
+
+export function useCreateCustomer() {
+	return useInvalidatingMutation(
+		[["customers"]],
+		(body: { name: string; phone?: string }) =>
+			api.post<Customer>("/api/customers", body),
+	);
+}
+
+export function useInvoices() {
+	return useQuery<Invoice[], ApiError>({
+		queryKey: ["invoices"],
+		queryFn: () => api.get<Invoice[]>("/api/invoices"),
+	});
+}
+
+export function useInvoice(id: string | null) {
+	return useQuery<InvoiceDetail, ApiError>({
+		queryKey: ["invoices", id],
+		queryFn: () => api.get<InvoiceDetail>(`/api/invoices/${id}`),
+		enabled: id !== null,
+	});
+}
+
+export function useRecordPayment() {
+	return useInvalidatingMutation(
+		[["invoices"], ["customers"]],
+		({ invoiceId, amount }: { invoiceId: string; amount: string }) =>
+			api.post(`/api/invoices/${invoiceId}/payments`, { amount }),
+	);
+}
+
+// ---- analytics dashboard ----------------------------------------------------
+
+export function useDashboard() {
+	return useQuery<Dashboard, ApiError>({
+		queryKey: ["dashboard"],
+		queryFn: () => api.get<Dashboard>("/api/analytics/dashboard"),
+	});
+}
+
+export function useProjections() {
+	return useQuery<Projection[], ApiError>({
+		queryKey: ["projections"],
+		queryFn: () => api.get<Projection[]>("/api/analytics/projections"),
+	});
 }
 
 // ---- expenses & reports -----------------------------------------------------
