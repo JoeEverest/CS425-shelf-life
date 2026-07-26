@@ -97,6 +97,35 @@ export type PurchaseOrderDetail = {
 		bulkUnitName: string;
 		qtyBulk: number;
 		bulkCostAtOrder: string;
+		receivedSoFar?: number;
+		remaining?: number;
+	}>;
+};
+
+export type SaleSummary = {
+	id: string;
+	soldAt: string;
+	type: "cash" | "credit";
+	total: string;
+	totalProfit: string;
+	lineCount: number;
+};
+
+export type SaleDetail = {
+	id: string;
+	soldAt: string;
+	type: "cash" | "credit";
+	total: string;
+	totalProfit: string;
+	lines: Array<{
+		id: string;
+		productId: string;
+		productName: string;
+		sku: string;
+		qtyUnits: number;
+		saleUnitName?: string;
+		unitPriceAtSale: string;
+		lineProfit: string;
 	}>;
 };
 

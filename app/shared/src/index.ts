@@ -5,4 +5,5 @@ export * from "./finance";
 export * from "./permissions";
 export * from "./pricing";
 export * from "./procurement";
+export * from "./sales";
 export * from "./types";

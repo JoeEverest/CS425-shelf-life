@@ -4,6 +4,7 @@ import {
 	PackageOpen,
 	Receipt,
 	Scale,
+	ScanLine,
 	Truck,
 	Users,
 } from "lucide-react";
@@ -17,6 +18,17 @@ export type NavItem = {
 };
 
 export const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
+	{
+		label: "Counter",
+		items: [
+			{
+				label: "Sell",
+				path: "/sell",
+				permission: PERMISSIONS.SALES_RECORD,
+				icon: ScanLine,
+			},
+		],
+	},
 	{
 		label: "Store",
 		items: [

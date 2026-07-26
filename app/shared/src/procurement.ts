@@ -44,6 +44,65 @@ export const purchaseOrderStatusQuerySchema = z
 	})
 	.strict();
 
+const money = z
+	.string()
+	.regex(
+		/^\d{1,10}\.\d{2}$/,
+		"Money must be a non-negative string with two decimal places.",
+	);
+
+const receiptPaymentSchema = z.discriminatedUnion("kind", [
+	z
+		.object({
+			kind: z.literal("immediate"),
+			amount: money.optional(),
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal("partial"),
+			amount: money,
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal("deferred"),
+			amount: money.optional(),
+		})
+		.strict(),
+]);
+
+export const goodsReceiptCreateSchema = z
+	.object({
+		lines: z
+			.array(
+				z
+					.object({
+						poLineId: z.string().uuid(),
+						qtyBulkReceived: z.number().int().nonnegative().max(2_147_483_647),
+					})
+					.strict(),
+			)
+			.min(1),
+		payment: receiptPaymentSchema,
+		discrepancyNote: z.string().trim().min(1).optional(),
+		discrepancyConfirmed: z.boolean().optional(),
+	})
+	.strict()
+	.superRefine((input, context) => {
+		const ids = new Set<string>();
+		for (const [index, line] of input.lines.entries()) {
+			if (ids.has(line.poLineId)) {
+				context.addIssue({
+					code: "custom",
+					message: "Each purchase-order line may appear only once.",
+					path: ["lines", index, "poLineId"],
+				});
+			}
+			ids.add(line.poLineId);
+		}
+	});
+
 export type SupplierCreateInput = z.infer<typeof supplierCreateSchema>;
 export type SupplierUpdateInput = z.infer<typeof supplierUpdateSchema>;
 export type PurchaseOrderCreateInput = z.infer<
@@ -52,3 +111,4 @@ export type PurchaseOrderCreateInput = z.infer<
 export type PurchaseOrderStatus = z.infer<
 	typeof purchaseOrderStatusQuerySchema
 >["status"];
+export type GoodsReceiptCreateInput = z.infer<typeof goodsReceiptCreateSchema>;

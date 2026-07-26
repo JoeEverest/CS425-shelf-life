@@ -11,6 +11,7 @@ import { IdentityRepo } from "./repos/identity-repo";
 import { InventoryRepo } from "./repos/inventory-repo";
 import { PricingRepo } from "./repos/pricing-repo";
 import { ProcurementRepo } from "./repos/procurement-repo";
+import { SalesRepo } from "./repos/sales-repo";
 import { SetupRepo } from "./repos/setup-repo";
 import { createStoreRoutes, createUserRoutes } from "./routes/administration";
 import { createAuthRoutes } from "./routes/auth";
@@ -22,6 +23,7 @@ import {
 	createPurchaseOrderRoutes,
 	createSupplierRoutes,
 } from "./routes/procurement";
+import { createSalesRoutes } from "./routes/sales";
 import { createSetupRoutes } from "./routes/setup";
 import { AdministrationService } from "./services/administration-service";
 import { AuthService } from "./services/auth-service";
@@ -31,6 +33,7 @@ import { FinanceService } from "./services/finance-service";
 import { InventoryService } from "./services/inventory-service";
 import { PricingService } from "./services/pricing-service";
 import { ProcurementService } from "./services/procurement-service";
+import { SalesService } from "./services/sales-service";
 import { SetupService } from "./services/setup-service";
 
 export function createApp(database: Database): Hono<AppEnv> {
@@ -49,6 +52,7 @@ export function createApp(database: Database): Hono<AppEnv> {
 	const procurementService = new ProcurementService(
 		new ProcurementRepo(database),
 	);
+	const salesService = new SalesService(new SalesRepo(database));
 	const setupService = new SetupService(new SetupRepo(database));
 
 	return new Hono<AppEnv>()
@@ -85,6 +89,7 @@ export function createApp(database: Database): Hono<AppEnv> {
 			"/api/purchase-orders",
 			createPurchaseOrderRoutes(authService, procurementService),
 		)
+		.route("/api/sales", createSalesRoutes(authService, salesService))
 		.route("/api/expenses", createExpenseRoutes(authService, financeService))
 		.route("/api/reports", createReportRoutes(authService, financeService))
 		.notFound((context) => {

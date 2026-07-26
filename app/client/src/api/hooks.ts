@@ -15,6 +15,8 @@ import type {
 	Product,
 	PurchaseOrderDetail,
 	PurchaseOrderSummary,
+	SaleDetail,
+	SaleSummary,
 	StockRow,
 	Store,
 	Supplier,
@@ -308,6 +310,54 @@ export function useCreatePurchaseOrder() {
 			supplierId: string;
 			lines: Array<{ productId: string; qtyBulk: number }>;
 		}) => api.post<PurchaseOrderDetail>("/api/purchase-orders", body),
+	);
+}
+
+export type ReceiptPayment =
+	| { kind: "immediate" }
+	| { kind: "deferred" }
+	| { kind: "partial"; amount: string };
+
+export function useReceiveDelivery() {
+	return useInvalidatingMutation(
+		[["purchase-orders"], ["stock"], ["suppliers"], ["products"]],
+		({
+			poId,
+			...body
+		}: {
+			poId: string;
+			lines: Array<{ poLineId: string; qtyBulkReceived: number }>;
+			payment: ReceiptPayment;
+			discrepancyNote?: string;
+			discrepancyConfirmed?: boolean;
+		}) => api.post(`/api/purchase-orders/${poId}/receipts`, body),
+	);
+}
+
+// ---- sales (POS) ------------------------------------------------------------
+
+export function useSales() {
+	return useQuery<SaleSummary[], ApiError>({
+		queryKey: ["sales"],
+		queryFn: () => api.get<SaleSummary[]>("/api/sales"),
+	});
+}
+
+export function useSale(id: string | null) {
+	return useQuery<SaleDetail, ApiError>({
+		queryKey: ["sales", id],
+		queryFn: () => api.get<SaleDetail>(`/api/sales/${id}`),
+		enabled: id !== null,
+	});
+}
+
+export function useRecordSale() {
+	return useInvalidatingMutation(
+		[["sales"], ["stock"], ["products"]],
+		(body: {
+			type: "cash";
+			lines: Array<{ productId: string; qtyUnits: number }>;
+		}) => api.post<SaleDetail>("/api/sales", body),
 	);
 }
 
