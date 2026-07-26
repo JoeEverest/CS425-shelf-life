@@ -8,6 +8,7 @@ import EmployeesPage from "@/pages/EmployeesPage";
 import ExpensesPage from "@/pages/ExpensesPage";
 import LoginPage from "@/pages/LoginPage";
 import ProductsPage from "@/pages/ProductsPage";
+import ProjectionsPage from "@/pages/ProjectionsPage";
 import PurchaseOrdersPage from "@/pages/PurchaseOrdersPage";
 import ReportsPage from "@/pages/ReportsPage";
 import SellPage from "@/pages/SellPage";
@@ -32,6 +33,7 @@ function App() {
 				<Route element={<AppShell />}>
 					<Route index element={<IndexRedirect />} />
 					<Route path="/dashboard" element={<DashboardPage />} />
+					<Route path="/projections" element={<ProjectionsPage />} />
 					<Route path="/sell" element={<SellPage />} />
 					<Route path="/customers" element={<CustomersPage />} />
 					<Route path="/products" element={<ProductsPage />} />
