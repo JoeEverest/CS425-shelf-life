@@ -1,5 +1,7 @@
 import type { Database } from "db";
 import {
+	customers,
+	invoices,
 	products,
 	saleLines,
 	sales,
@@ -8,7 +10,7 @@ import {
 	users,
 } from "db/schema";
 import { and, count, desc, eq, gte, type SQL, sql } from "drizzle-orm";
-import type { CashSaleCreateInput, SalesListQuery } from "shared";
+import type { SaleCreateInput, SalesListQuery } from "shared";
 import { centsToMoney, moneyToCents } from "../rules/money";
 
 export class ProductNotSellableRepoError extends Error {
@@ -26,6 +28,8 @@ export class SaleInsufficientStockRepoError extends Error {
 		super("Insufficient stock.");
 	}
 }
+
+export class SaleCustomerNotFoundRepoError extends Error {}
 
 const saleSelection = {
 	id: sales.id,
@@ -67,11 +71,19 @@ type PricedSaleLine = {
 export class SalesRepo {
 	constructor(private readonly database: Database) {}
 
-	async createCashSale(
-		input: CashSaleCreateInput,
-		clerkId: string,
-	): Promise<string> {
+	async createSale(input: SaleCreateInput, clerkId: string): Promise<string> {
 		return this.database.transaction(async (transaction) => {
+			if (input.type === "credit") {
+				const [customer] = await transaction
+					.select({ id: customers.id })
+					.from(customers)
+					.where(eq(customers.id, input.customerId))
+					.for("update");
+				if (!customer) {
+					throw new SaleCustomerNotFoundRepoError();
+				}
+			}
+
 			const pricedLines: PricedSaleLine[] = [];
 
 			// A stable lock order avoids deadlocks when concurrent multi-line sales
@@ -147,7 +159,7 @@ export class SalesRepo {
 				.insert(sales)
 				.values({
 					clerkId,
-					type: "cash",
+					type: input.type,
 					total,
 					totalProfit,
 				})
@@ -194,11 +206,26 @@ export class SalesRepo {
 				await transaction.insert(stockMovements).values({
 					productId: line.productId,
 					deltaUnits: -line.qtyUnits,
-					reason: "sale",
+					reason: input.type === "credit" ? "credit_sale" : "sale",
 					refTable: "sale_lines",
 					refId: saleLine.id,
 					actorId: clerkId,
 				});
+			}
+
+			if (input.type === "credit") {
+				await transaction.insert(invoices).values({
+					saleId: sale.id,
+					customerId: input.customerId,
+					total,
+					balance: total,
+				});
+				await transaction
+					.update(customers)
+					.set({
+						outstandingBalance: sql`${customers.outstandingBalance} + ${total}`,
+					})
+					.where(eq(customers.id, input.customerId));
 			}
 
 			return sale.id;

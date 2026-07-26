@@ -145,3 +145,59 @@ export type FinancialReport = {
 	expensesByCategory: Record<string, string>;
 	netProfit: string;
 };
+
+export type StockAlert = {
+	productId: string;
+	sku: string;
+	name: string;
+	qtyUnits: number;
+	saleUnitName: string;
+	velocityPerDay: string;
+	daysToStockout: string | null;
+	low: boolean;
+	hasHistory: boolean;
+};
+
+export type Customer = {
+	id: string;
+	name: string;
+	phone: string | null;
+	outstandingBalance: string;
+};
+
+export type Invoice = {
+	id: string;
+	customerId: string;
+	customerName: string;
+	total: string;
+	balance: string;
+	issuedAt: string;
+	saleId: string;
+};
+
+export type InvoiceDetail = Invoice & {
+	payments: Array<{
+		id: string;
+		amount: string;
+		paidAt: string;
+	}>;
+};
+
+export type Dashboard = {
+	salesTotal: string;
+	salesProfit: string;
+	salesCount: number;
+	expensesTotal: string;
+	netProfit: string;
+	supplierPayable: string;
+	customerReceivable: string;
+	lowStockCount: number;
+	topProducts: Array<{
+		productId: string;
+		name: string;
+		sku: string;
+		unitsSold: number;
+		revenue: string;
+		profit: string;
+	}>;
+};

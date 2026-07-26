@@ -1,6 +1,8 @@
 import {
 	Boxes,
 	ClipboardList,
+	Contact,
+	LayoutDashboard,
 	PackageOpen,
 	Receipt,
 	Scale,
@@ -19,6 +21,17 @@ export type NavItem = {
 
 export const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
 	{
+		label: "Overview",
+		items: [
+			{
+				label: "Dashboard",
+				path: "/dashboard",
+				permission: PERMISSIONS.ANALYTICS_VIEW,
+				icon: LayoutDashboard,
+			},
+		],
+	},
+	{
 		label: "Counter",
 		items: [
 			{
@@ -26,6 +39,12 @@ export const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
 				path: "/sell",
 				permission: PERMISSIONS.SALES_RECORD,
 				icon: ScanLine,
+			},
+			{
+				label: "Customers",
+				path: "/customers",
+				permission: PERMISSIONS.CUSTOMERS_MANAGE,
+				icon: Contact,
 			},
 		],
 	},

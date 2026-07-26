@@ -18,6 +18,12 @@ export function createInventoryRoutes(
 ) {
 	return new Hono<AppEnv>()
 		.get(
+			"/alerts",
+			auth(authService),
+			rbac(PERMISSIONS.STOCK_VIEW),
+			async (context) => context.json(await inventoryService.listStockAlerts()),
+		)
+		.get(
 			"/",
 			auth(authService),
 			rbac(PERMISSIONS.STOCK_VIEW),
