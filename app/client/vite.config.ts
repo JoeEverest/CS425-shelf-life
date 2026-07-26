@@ -10,4 +10,10 @@ export default defineConfig({
 			"@": path.resolve(__dirname, "./src"),
 		},
 	},
+	server: {
+		// Same-origin /api keeps the SameSite=Lax session cookie on requests.
+		proxy: {
+			"/api": "http://localhost:3000",
+		},
+	},
 });

@@ -8,6 +8,13 @@
 			"when": 1785035990659,
 			"tag": "0000_magenta_red_hulk",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1785038998288,
+			"tag": "0001_unusual_avengers",
+			"breakpoints": true
 		}
 	]
 }
