@@ -11,6 +11,7 @@ export async function migrateDatabase(database: Database) {
 export async function truncateDatabase(queryClient: DatabaseClient) {
 	await queryClient.unsafe(`
 		TRUNCATE TABLE
+			price_changes,
 			customer_payments,
 			invoices,
 			sale_lines,
