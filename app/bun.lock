@@ -4,15 +4,10 @@
   "workspaces": {
     "": {
       "name": "bhvr",
-      "dependencies": {
-        "hono": "^4.12.32",
-      },
       "devDependencies": {
         "@biomejs/biome": "^2.5.5",
         "bun-types": "latest",
         "turbo": "^2.6.3",
-      },
-      "peerDependencies": {
         "typescript": "^5.8.3",
       },
     },
@@ -66,7 +61,9 @@
       "name": "server",
       "version": "0.0.1",
       "dependencies": {
-        "hono": "^4.10.8",
+        "db": "workspace:*",
+        "drizzle-orm": "^0.44.5",
+        "hono": "^4.12.32",
         "shared": "workspace:*",
       },
       "devDependencies": {
@@ -76,6 +73,9 @@
     "shared": {
       "name": "shared",
       "version": "0.0.1",
+      "dependencies": {
+        "zod": "^4.1.12",
+      },
       "devDependencies": {
         "typescript": "^5.9.3",
       },
