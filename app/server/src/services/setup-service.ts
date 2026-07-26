@@ -1,4 +1,5 @@
 import type { SetupInput } from "shared";
+import { isDatabaseError } from "../repos/database-errors";
 import type { BootstrapResult, SetupRepo } from "../repos/setup-repo";
 import type { AuthSession } from "./auth-service";
 import { createSessionMaterial } from "./session";
@@ -47,6 +48,12 @@ export class SetupService {
 			});
 		} catch (error) {
 			if (await this.setupRepo.hasUsers()) {
+				throw new SetupAlreadyCompleteError();
+			}
+			// A serialization abort can fire before the winning transaction
+			// commits, in which case hasUsers() is still false — the loser of
+			// the race still means setup happened (or is happening) elsewhere.
+			if (isDatabaseError(error, "40001") || isDatabaseError(error, "40P01")) {
 				throw new SetupAlreadyCompleteError();
 			}
 			throw error;

@@ -235,7 +235,15 @@ function soldAt(daysAgo: number): Date {
 	const timestamp = new Date();
 	timestamp.setUTCDate(timestamp.getUTCDate() - daysAgo);
 	timestamp.setUTCHours(15, 0, 0, 0);
-	return timestamp;
+	// Never stamp the future (seeding before 15:00 UTC on day 0).
+	const now = new Date();
+	return timestamp > now ? now : timestamp;
+}
+
+// Initial deliveries land before the earliest sale so a chronological replay
+// of the ledger never goes negative (BR-NoNegativeStock holds historically).
+function initialStockAt(): Date {
+	return soldAt(10);
 }
 
 async function seed() {
@@ -412,6 +420,7 @@ async function seed() {
 					refTable: "seed_initial_stock",
 					refId: supplierId,
 					actorId: inventoryClerk.id,
+					occurredAt: initialStockAt(),
 				})),
 				...saleMovementRows,
 			]);

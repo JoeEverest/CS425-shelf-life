@@ -4,15 +4,24 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { ApiResponse } from "shared";
 import type { AppEnv } from "./auth-context";
+import { CatalogRepo } from "./repos/catalog-repo";
 import { IdentityRepo } from "./repos/identity-repo";
+import { InventoryRepo } from "./repos/inventory-repo";
 import { SetupRepo } from "./repos/setup-repo";
 import { createAuthRoutes } from "./routes/auth";
+import { createCategoryRoutes, createProductRoutes } from "./routes/catalog";
+import { createInventoryRoutes } from "./routes/inventory";
 import { createSetupRoutes } from "./routes/setup";
 import { AuthService } from "./services/auth-service";
+import { CatalogService } from "./services/catalog-service";
+import { DomainError } from "./services/domain-error";
+import { InventoryService } from "./services/inventory-service";
 import { SetupService } from "./services/setup-service";
 
 export function createApp(database: Database) {
 	const authService = new AuthService(new IdentityRepo(database));
+	const catalogService = new CatalogService(new CatalogRepo(database));
+	const inventoryService = new InventoryService(new InventoryRepo(database));
 	const setupService = new SetupService(new SetupRepo(database));
 
 	return new Hono<AppEnv>()
@@ -35,6 +44,9 @@ export function createApp(database: Database) {
 		})
 		.route("/api/auth", createAuthRoutes(authService))
 		.route("/api/setup", createSetupRoutes(setupService))
+		.route("/api/categories", createCategoryRoutes(authService, catalogService))
+		.route("/api/products", createProductRoutes(authService, catalogService))
+		.route("/api/stock", createInventoryRoutes(authService, inventoryService))
 		.notFound((context) => {
 			return context.json(
 				{ code: "NOT_FOUND", message: "The requested resource was not found." },
@@ -42,6 +54,13 @@ export function createApp(database: Database) {
 			);
 		})
 		.onError((error, context) => {
+			if (error instanceof DomainError) {
+				return context.json(
+					{ code: error.code, message: error.message },
+					error.status,
+				);
+			}
+
 			if (error instanceof HTTPException && error.status === 400) {
 				return context.json(
 					{

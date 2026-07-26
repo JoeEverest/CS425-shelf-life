@@ -13,3 +13,19 @@ export function rbac(permission: Permission): MiddlewareHandler<AppEnv> {
 		await next();
 	};
 }
+
+export function rbacAny(
+	permissions: readonly Permission[],
+): MiddlewareHandler<AppEnv> {
+	return async (context, next) => {
+		if (
+			!permissions.some((permission) =>
+				hasPermission(context.get("authUser").roles, permission),
+			)
+		) {
+			return forbidden(context);
+		}
+
+		await next();
+	};
+}
