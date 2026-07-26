@@ -745,3 +745,71 @@ describe("SHE-14 analytics dashboard", () => {
 		expect(dashboard.salesTotal).toBe("20.00");
 	});
 });
+
+describe("SHE-15 stock projections", () => {
+	test("projects known velocity, sorts no-history products last, and is gated on analytics.view", async () => {
+		const manager = await createUser("projections.manager", ["manager"]);
+		const clerk = await createUser("projections.clerk", ["inventory_clerk"]);
+		await createStore({ velocityWindowDays: 10 });
+		const knownVelocity = await createProduct({
+			createdBy: manager.id,
+			qtyUnits: 24,
+		});
+		const noHistory = await createProduct({
+			createdBy: manager.id,
+			qtyUnits: 50,
+		});
+		await testDb.insert(stockMovements).values({
+			productId: knownVelocity.id,
+			deltaUnits: -12,
+			reason: "sale",
+			refTable: "test_sales",
+			refId: randomUUID(),
+			actorId: manager.id,
+		});
+
+		const unauthenticated = await request(
+			"GET",
+			"/api/analytics/projections",
+			"",
+		);
+		expect(unauthenticated.status).toBe(401);
+
+		// A stock.view-only role (inventory clerk) cannot see projections (UC-17).
+		const clerkResponse = await request(
+			"GET",
+			"/api/analytics/projections",
+			await createSessionCookie(clerk.id),
+		);
+		expect(clerkResponse.status).toBe(403);
+
+		const response = await request(
+			"GET",
+			"/api/analytics/projections",
+			await createSessionCookie(manager.id),
+		);
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual([
+			{
+				productId: knownVelocity.id,
+				sku: knownVelocity.sku,
+				name: knownVelocity.name,
+				qtyUnits: 24,
+				saleUnitName: "unit",
+				velocityPerDay: "1.2000",
+				daysToStockout: "20.0",
+				hasHistory: true,
+			},
+			{
+				productId: noHistory.id,
+				sku: noHistory.sku,
+				name: noHistory.name,
+				qtyUnits: 50,
+				saleUnitName: "unit",
+				velocityPerDay: "0.0000",
+				daysToStockout: null,
+				hasHistory: false,
+			},
+		]);
+	});
+});

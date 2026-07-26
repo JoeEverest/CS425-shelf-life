@@ -7,6 +7,7 @@ import {
 	Receipt,
 	Scale,
 	ScanLine,
+	TrendingDown,
 	Truck,
 	Users,
 } from "lucide-react";
@@ -28,6 +29,12 @@ export const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
 				path: "/dashboard",
 				permission: PERMISSIONS.ANALYTICS_VIEW,
 				icon: LayoutDashboard,
+			},
+			{
+				label: "Projections",
+				path: "/projections",
+				permission: PERMISSIONS.ANALYTICS_VIEW,
+				icon: TrendingDown,
 			},
 		],
 	},

@@ -11,14 +11,21 @@ export function createAnalyticsRoutes(
 	authService: AuthService,
 	analyticsService: AnalyticsService,
 ) {
-	return new Hono<AppEnv>().get(
-		"/dashboard",
-		auth(authService),
-		rbac(PERMISSIONS.ANALYTICS_VIEW),
-		zodQuery(dashboardQuerySchema),
-		async (context) =>
-			context.json(
-				await analyticsService.dashboard(context.req.valid("query")),
-			),
-	);
+	return new Hono<AppEnv>()
+		.get(
+			"/projections",
+			auth(authService),
+			rbac(PERMISSIONS.ANALYTICS_VIEW),
+			async (context) => context.json(await analyticsService.projections()),
+		)
+		.get(
+			"/dashboard",
+			auth(authService),
+			rbac(PERMISSIONS.ANALYTICS_VIEW),
+			zodQuery(dashboardQuerySchema),
+			async (context) =>
+				context.json(
+					await analyticsService.dashboard(context.req.valid("query")),
+				),
+		);
 }

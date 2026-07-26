@@ -17,6 +17,7 @@ import type {
 	Me,
 	PriceChange,
 	Product,
+	Projection,
 	PurchaseOrderDetail,
 	PurchaseOrderSummary,
 	SaleDetail,
@@ -429,6 +430,13 @@ export function useDashboard() {
 	return useQuery<Dashboard, ApiError>({
 		queryKey: ["dashboard"],
 		queryFn: () => api.get<Dashboard>("/api/analytics/dashboard"),
+	});
+}
+
+export function useProjections() {
+	return useQuery<Projection[], ApiError>({
+		queryKey: ["projections"],
+		queryFn: () => api.get<Projection[]>("/api/analytics/projections"),
 	});
 }
 

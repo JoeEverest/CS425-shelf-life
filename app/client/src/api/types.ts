@@ -183,6 +183,17 @@ export type InvoiceDetail = Invoice & {
 	}>;
 };
 
+export type Projection = {
+	productId: string;
+	sku: string;
+	name: string;
+	qtyUnits: number;
+	saleUnitName: string;
+	velocityPerDay: string;
+	daysToStockout: string | null;
+	hasHistory: boolean;
+};
+
 export type Dashboard = {
 	salesTotal: string;
 	salesProfit: string;

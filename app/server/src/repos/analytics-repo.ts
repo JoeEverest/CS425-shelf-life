@@ -21,6 +21,26 @@ export type DashboardPeriod = {
 export class AnalyticsRepo {
 	constructor(private readonly database: Database) {}
 
+	listStockProjectionInputs() {
+		return this.database
+			.select({
+				productId: products.id,
+				sku: products.sku,
+				name: products.name,
+				qtyUnits: stockLevels.qtyUnits,
+				saleUnitName: products.saleUnitName,
+				unitsSoldInWindow: sql<number>`coalesce(sum(-${stockMovements.deltaUnits}), 0)::double precision`,
+				windowDays: stores.velocityWindowDays,
+				coverDays: stores.lowStockCoverDays,
+			})
+			.from(products)
+			.innerJoin(stockLevels, eq(stockLevels.productId, products.id))
+			.innerJoin(stores, sql`true`)
+			.leftJoin(stockMovements, qualifyingStockMovementInConfiguredWindow)
+			.where(eq(products.archived, false))
+			.groupBy(products.id, stockLevels.productId, stores.id);
+	}
+
 	async dashboard(period: DashboardPeriod) {
 		// Bind the boundaries as date strings and cast in SQL — postgres.js
 		// cannot serialize a JS Date embedded in a raw sql fragment.
