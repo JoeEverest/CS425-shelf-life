@@ -1,22 +1,8 @@
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import type { ApiResponse } from "shared";
+import { createDb, readDatabaseEnv } from "db";
+import { createApp } from "./app";
 
-export const app = new Hono()
+const { DATABASE_URL } = readDatabaseEnv();
 
-	.use(cors())
-
-	.get("/", (c) => {
-		return c.text("Hello Hono!");
-	})
-
-	.get("/hello", async (c) => {
-		const data: ApiResponse = {
-			message: "Hello BHVR!",
-			success: true,
-		};
-
-		return c.json(data, { status: 200 });
-	});
+export const app = createApp(createDb(DATABASE_URL));
 
 export default app;

@@ -242,6 +242,17 @@ async function seed() {
 	const env = readDatabaseEnv();
 	const queryClient = client(env.DATABASE_URL);
 	const db = createDb(queryClient);
+	const passwordHashes = new Map(
+		await Promise.all(
+			userDefinitions.map(
+				async (user) =>
+					[
+						user.id,
+						await Bun.password.hash("password123", { algorithm: "argon2id" }),
+					] as const,
+			),
+		),
+	);
 
 	try {
 		await db.transaction(async (tx) => {
@@ -280,7 +291,7 @@ async function seed() {
 			await tx.insert(users).values(
 				userDefinitions.map(({ role: _role, ...user }) => ({
 					...user,
-					passwordHash: "placeholder-auth-not-yet-implemented",
+					passwordHash: passwordHashes.get(user.id) as string,
 				})),
 			);
 

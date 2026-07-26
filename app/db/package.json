@@ -16,12 +16,16 @@
 		"./schema": {
 			"types": "./dist/schema.d.ts",
 			"default": "./dist/schema.js"
+		},
+		"./testing": {
+			"types": "./dist/testing.d.ts",
+			"default": "./dist/testing.js"
 		}
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
 		"type-check": "tsc --noEmit",
-		"test": "bun test ./test",
+		"test": "bun --env-file=../.env test ./test",
 		"generate": "drizzle-kit generate",
 		"migrate": "drizzle-kit migrate",
 		"seed": "bun --env-file=../.env run src/seed.ts"

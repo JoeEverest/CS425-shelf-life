@@ -15,10 +15,14 @@
 	},
 	"scripts": {
 		"build": "tsc",
-		"dev": "bun --watch run src/index.ts & tsc --watch"
+		"dev": "bun --watch run src/index.ts & tsc --watch",
+		"test": "bun --env-file=../.env test ./test",
+		"type-check": "tsc --noEmit && tsc -p tsconfig.test.json"
 	},
 	"dependencies": {
-		"hono": "^4.10.8",
+		"db": "workspace:*",
+		"drizzle-orm": "^0.44.5",
+		"hono": "^4.12.32",
 		"shared": "workspace:*"
 	},
 	"devDependencies": {

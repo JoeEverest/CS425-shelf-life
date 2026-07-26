@@ -17,7 +17,7 @@
 		"dev:server": "turbo dev --filter=server",
 		"build": "turbo build",
 		"type-check": "turbo type-check",
-		"test": "turbo test",
+		"test": "turbo test --concurrency=1",
 		"lint": "biome lint .",
 		"format": "biome format . --write",
 		"format:check": "biome format .",

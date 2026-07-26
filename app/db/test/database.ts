@@ -1,6 +1,5 @@
-import { fileURLToPath } from "node:url";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { client, createDb } from "../src";
+import { migrateDatabase, truncateDatabase } from "../src/testing";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -14,36 +13,11 @@ export const testClient = client(testDatabaseUrl);
 export const testDb = createDb(testClient);
 
 export async function migrateTestDatabase() {
-	await migrate(testDb, {
-		migrationsFolder: fileURLToPath(new URL("../drizzle", import.meta.url)),
-	});
+	await migrateDatabase(testDb);
 }
 
 export async function truncateTables() {
-	await testClient.unsafe(`
-		TRUNCATE TABLE
-			customer_payments,
-			invoices,
-			sale_lines,
-			sales,
-			expenses,
-			receipt_lines,
-			goods_receipts,
-			supplier_payments,
-			po_lines,
-			purchase_orders,
-			stock_movements,
-			stock_levels,
-			products,
-			categories,
-			customers,
-			suppliers,
-			sessions,
-			user_roles,
-			users,
-			stores
-		RESTART IDENTITY CASCADE
-	`);
+	await truncateDatabase(testClient);
 }
 
 export async function closeTestDatabase() {
