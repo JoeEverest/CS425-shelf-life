@@ -2,10 +2,13 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { useMe } from "@/api/hooks";
 import AppShell from "@/components/shell/AppShell";
 import { firstPermittedPath } from "@/lib/nav";
+import CustomersPage from "@/pages/CustomersPage";
+import DashboardPage from "@/pages/DashboardPage";
 import EmployeesPage from "@/pages/EmployeesPage";
 import ExpensesPage from "@/pages/ExpensesPage";
 import LoginPage from "@/pages/LoginPage";
 import ProductsPage from "@/pages/ProductsPage";
+import ProjectionsPage from "@/pages/ProjectionsPage";
 import PurchaseOrdersPage from "@/pages/PurchaseOrdersPage";
 import ReportsPage from "@/pages/ReportsPage";
 import SellPage from "@/pages/SellPage";
@@ -29,7 +32,10 @@ function App() {
 				<Route path="/setup" element={<SetupPage />} />
 				<Route element={<AppShell />}>
 					<Route index element={<IndexRedirect />} />
+					<Route path="/dashboard" element={<DashboardPage />} />
+					<Route path="/projections" element={<ProjectionsPage />} />
 					<Route path="/sell" element={<SellPage />} />
+					<Route path="/customers" element={<CustomersPage />} />
 					<Route path="/products" element={<ProductsPage />} />
 					<Route path="/stock" element={<StockPage />} />
 					<Route path="/suppliers" element={<SuppliersPage />} />

@@ -16,6 +16,19 @@ export const cashSaleCreateSchema = z
 	})
 	.strict();
 
+export const creditSaleCreateSchema = z
+	.object({
+		type: z.literal("credit"),
+		customerId: z.string().uuid(),
+		lines: z.array(saleLineSchema).min(1),
+	})
+	.strict();
+
+export const saleCreateSchema = z.discriminatedUnion("type", [
+	cashSaleCreateSchema,
+	creditSaleCreateSchema,
+]);
+
 export const salesListQuerySchema = z
 	.object({
 		from: z.iso.date().optional(),
@@ -34,4 +47,6 @@ export const salesListQuerySchema = z
 	);
 
 export type CashSaleCreateInput = z.infer<typeof cashSaleCreateSchema>;
+export type CreditSaleCreateInput = z.infer<typeof creditSaleCreateSchema>;
+export type SaleCreateInput = z.infer<typeof saleCreateSchema>;
 export type SalesListQuery = z.infer<typeof salesListQuerySchema>;

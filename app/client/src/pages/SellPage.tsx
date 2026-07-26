@@ -1,24 +1,44 @@
 import { useMemo, useRef, useState } from "react";
-import { useProducts, useRecordSale } from "@/api/hooks";
+import {
+	useCreateCustomer,
+	useCustomers,
+	useMe,
+	useProducts,
+	useRecordSale,
+} from "@/api/hooks";
 import type { Product, SaleDetail } from "@/api/types";
 import { ErrorNote, Money, PageHeader, Qty } from "@/components/bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+	NativeSelect,
+	NativeSelectOption,
+} from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { can, PERMISSIONS } from "@/lib/access";
 
 type CartLine = { product: Product; qty: number };
+type Tender = "cash" | "credit";
 
 function sellable(product: Product): boolean {
 	return product.published && !product.archived && product.price !== null;
 }
 
 export default function SellPage() {
+	const me = useMe();
 	const products = useProducts();
+	const customers = useCustomers();
+	const createCustomer = useCreateCustomer();
 	const record = useRecordSale();
 	const [query, setQuery] = useState("");
 	const [cart, setCart] = useState<CartLine[]>([]);
 	const [receipt, setReceipt] = useState<SaleDetail | null>(null);
+	const [tender, setTender] = useState<Tender>("cash");
+	const [customerId, setCustomerId] = useState("");
+	const [newCustomer, setNewCustomer] = useState("");
 	const searchRef = useRef<HTMLInputElement>(null);
+
+	const canCredit = can(me.data?.roles ?? [], PERMISSIONS.CUSTOMERS_MANAGE);
 
 	const catalog = (products.data ?? []).filter(sellable);
 	const matches = useMemo(() => {
@@ -66,23 +86,26 @@ export default function SellPage() {
 	}
 
 	function completeSale() {
-		record.mutate(
-			{
-				type: "cash",
-				lines: cart.map((line) => ({
-					productId: line.product.id,
-					qtyUnits: line.qty,
-				})),
+		const lines = cart.map((line) => ({
+			productId: line.product.id,
+			qtyUnits: line.qty,
+		}));
+		const body =
+			tender === "credit"
+				? ({ type: "credit", customerId, lines } as const)
+				: ({ type: "cash", lines } as const);
+		record.mutate(body, {
+			onSuccess: (sale) => {
+				setReceipt(sale);
+				setCart([]);
+				setQuery("");
+				setTender("cash");
+				setCustomerId("");
 			},
-			{
-				onSuccess: (sale) => {
-					setReceipt(sale);
-					setCart([]);
-					setQuery("");
-				},
-			},
-		);
+		});
 	}
+
+	const creditReady = tender === "cash" || customerId !== "";
 
 	if (receipt) {
 		return (
@@ -140,7 +163,6 @@ export default function SellPage() {
 				<div className="space-y-4">
 					<Input
 						ref={searchRef}
-						// biome-ignore lint/a11y/noAutofocus: POS should be ready to type on load
 						autoFocus
 						placeholder="Search by name or SKU…"
 						value={query}
@@ -223,14 +245,84 @@ export default function SellPage() {
 						</div>
 					)}
 
+					{canCredit ? (
+						<div className="space-y-2 border-t pt-3">
+							<div className="inline-flex rounded-md border p-0.5 text-sm">
+								{(["cash", "credit"] as const).map((option) => (
+									<button
+										key={option}
+										type="button"
+										onClick={() => setTender(option)}
+										className={
+											tender === option
+												? "rounded bg-primary px-3 py-1 text-primary-foreground"
+												: "rounded px-3 py-1 text-muted-foreground"
+										}
+									>
+										{option === "cash" ? "Cash" : "Credit"}
+									</button>
+								))}
+							</div>
+							{tender === "credit" ? (
+								<div className="flex gap-2">
+									<NativeSelect
+										aria-label="Customer"
+										value={customerId}
+										onChange={(event) => setCustomerId(event.target.value)}
+									>
+										<NativeSelectOption value="">
+											Choose customer…
+										</NativeSelectOption>
+										{(customers.data ?? []).map((customer) => (
+											<NativeSelectOption key={customer.id} value={customer.id}>
+												{customer.name}
+											</NativeSelectOption>
+										))}
+									</NativeSelect>
+									<Input
+										aria-label="New customer name"
+										placeholder="or new…"
+										value={newCustomer}
+										onChange={(event) => setNewCustomer(event.target.value)}
+										className="max-w-28"
+									/>
+									<Button
+										type="button"
+										variant="outline"
+										disabled={
+											newCustomer.trim() === "" || createCustomer.isPending
+										}
+										onClick={() =>
+											createCustomer.mutate(
+												{ name: newCustomer.trim() },
+												{
+													onSuccess: (customer) => {
+														setNewCustomer("");
+														setCustomerId(customer.id);
+													},
+												},
+											)
+										}
+									>
+										Add
+									</Button>
+								</div>
+							) : null}
+						</div>
+					) : null}
+
 					{record.isError ? <ErrorNote message={record.error.message} /> : null}
 
 					<Button
 						className="w-full"
-						disabled={cart.length === 0 || record.isPending}
+						disabled={cart.length === 0 || record.isPending || !creditReady}
 						onClick={completeSale}
 					>
-						{record.isPending ? "Recording…" : "Take payment"}
+						{record.isPending
+							? "Recording…"
+							: tender === "credit"
+								? "Record credit sale"
+								: "Take payment"}
 					</Button>
 				</aside>
 			</div>

@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import {
-	cashSaleCreateSchema,
 	PERMISSIONS,
 	resourceIdParamsSchema,
+	saleCreateSchema,
 	salesListQuerySchema,
 } from "shared";
 import type { AppEnv } from "../auth-context";
@@ -21,10 +21,10 @@ export function createSalesRoutes(
 			"/",
 			auth(authService),
 			rbac(PERMISSIONS.SALES_RECORD),
-			zodJson(cashSaleCreateSchema),
+			zodJson(saleCreateSchema),
 			async (context) =>
 				context.json(
-					await salesService.createCashSale(
+					await salesService.createSale(
 						context.req.valid("json"),
 						context.get("authUser").id,
 					),

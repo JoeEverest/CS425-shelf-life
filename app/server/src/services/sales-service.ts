@@ -1,6 +1,7 @@
-import type { CashSaleCreateInput, SalesListQuery } from "shared";
+import type { SaleCreateInput, SalesListQuery } from "shared";
 import {
 	ProductNotSellableRepoError,
+	SaleCustomerNotFoundRepoError,
 	SaleInsufficientStockRepoError,
 	type SalesRepo,
 } from "../repos/sales-repo";
@@ -10,7 +11,7 @@ import { DomainError } from "./domain-error";
 export class SalesService {
 	constructor(private readonly salesRepo: SalesRepo) {}
 
-	async createCashSale(input: CashSaleCreateInput, clerkId: string) {
+	async createSale(input: SaleCreateInput, clerkId: string) {
 		if (hasDuplicateProducts(input.lines)) {
 			throw new DomainError(
 				400,
@@ -20,7 +21,7 @@ export class SalesService {
 		}
 
 		try {
-			const id = await this.salesRepo.createCashSale(input, clerkId);
+			const id = await this.salesRepo.createSale(input, clerkId);
 			return this.requireSale(id);
 		} catch (error) {
 			if (error instanceof ProductNotSellableRepoError) {
@@ -39,6 +40,9 @@ export class SalesService {
 					"INSUFFICIENT_STOCK",
 					`Insufficient stock for product ${error.productId}.`,
 				);
+			}
+			if (error instanceof SaleCustomerNotFoundRepoError) {
+				throw new DomainError(404, "CUSTOMER_NOT_FOUND", "Customer not found.");
 			}
 			throw error;
 		}
