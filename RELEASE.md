@@ -21,6 +21,17 @@ role.
 - [x] **CI blocks merges on failure** — format, lint, type-check, tests, and a
   production build all run and must pass (`.github/workflows/ci.yml`).
 - [x] **Seed/demo data** loads a representative store (`bun run db:seed`).
+- [x] **Backup/restore procedure exercised** with a ledger-integrity check —
+  evidence in [`docs/release/backup-restore-2026-07-26.md`](docs/release/backup-restore-2026-07-26.md)
+  (restored DB: 0 ledger mismatches, full row-count parity).
+- [x] **Readiness probe** — `GET /api/health/readiness` verifies database
+  connectivity (503 when the DB is unreachable), backed by tests.
+- [x] **Structured request logging** — one JSON line per request (method, path,
+  status, duration).
+- [x] **Threat model documented** — [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md).
+- [x] **Performance budget recorded and measured** —
+  [`docs/release/performance-budget.md`](docs/release/performance-budget.md).
+- [x] **`main` branch protection** requires the CI check to pass before merge.
 - [ ] **Production database provisioned** and `DATABASE_URL` set in the target
   environment (operator step).
 - [ ] **Backup schedule enabled** on the production database (see below).
