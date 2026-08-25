@@ -5,6 +5,7 @@ import {
 	LayoutDashboard,
 	PackageOpen,
 	Receipt,
+	ReceiptText,
 	Scale,
 	ScanLine,
 	TrendingDown,
@@ -46,6 +47,12 @@ export const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
 				path: "/sell",
 				permission: PERMISSIONS.SALES_RECORD,
 				icon: ScanLine,
+			},
+			{
+				label: "Sales",
+				path: "/sales",
+				permission: PERMISSIONS.SALES_RECORD,
+				icon: ReceiptText,
 			},
 			{
 				label: "Customers",

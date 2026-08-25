@@ -11,6 +11,7 @@ import ProductsPage from "@/pages/ProductsPage";
 import ProjectionsPage from "@/pages/ProjectionsPage";
 import PurchaseOrdersPage from "@/pages/PurchaseOrdersPage";
 import ReportsPage from "@/pages/ReportsPage";
+import SalesPage from "@/pages/SalesPage";
 import SellPage from "@/pages/SellPage";
 import SetupPage from "@/pages/SetupPage";
 import StockPage from "@/pages/StockPage";
@@ -35,6 +36,7 @@ function App() {
 					<Route path="/dashboard" element={<DashboardPage />} />
 					<Route path="/projections" element={<ProjectionsPage />} />
 					<Route path="/sell" element={<SellPage />} />
+					<Route path="/sales" element={<SalesPage />} />
 					<Route path="/customers" element={<CustomersPage />} />
 					<Route path="/products" element={<ProductsPage />} />
 					<Route path="/stock" element={<StockPage />} />

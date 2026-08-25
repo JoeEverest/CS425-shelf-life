@@ -106,6 +106,9 @@ export type SaleSummary = {
 	id: string;
 	soldAt: string;
 	type: "cash" | "credit";
+	clerkName: string;
+	customerId: string | null;
+	customerName: string | null;
 	total: string;
 	totalProfit: string;
 	lineCount: number;
@@ -115,6 +118,9 @@ export type SaleDetail = {
 	id: string;
 	soldAt: string;
 	type: "cash" | "credit";
+	clerkName: string;
+	customerId: string | null;
+	customerName: string | null;
 	total: string;
 	totalProfit: string;
 	lines: Array<{
