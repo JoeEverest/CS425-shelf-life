@@ -437,7 +437,7 @@ app/db/src/
 | Repository | `server/src/repos` | `sales-repo.ts`, `inventory-repo.ts` |
 | Rules Engine | `server/src/rules` | `money.ts`, `sale.ts`, `stock-velocity.ts` |
 | Entities / schema | `db/src/schema.ts` | 19 Drizzle tables |
-| Middleware | `server/src/middleware` | `auth.ts`, `rbac.ts`, `validate.ts` |
+| Middleware | `server/src/middleware` | `auth.ts`, `rbac.ts`, `validate.ts`, `request-logger.ts` |
 
 ### API surface
 
@@ -445,8 +445,12 @@ Every protected route runs `auth` + `rbac(permission)` + Zod validation. Errors
 use stable codes: `400` validation, `401` no session, `403` role, `404` missing,
 `409` business conflict (with a rule code such as `INSUFFICIENT_STOCK`).
 
+A request-logger middleware writes one structured JSON line per request (method,
+path, status, and duration). It skips health-probe traffic.
+
 | Endpoint group | Purpose |
 |---|---|
+| `GET /api/health` · `GET /api/health/readiness` | Liveness and database-readiness probes. Readiness returns `503` when the database is unreachable. |
 | `POST /api/auth/login` · `logout` · `GET /api/auth/me` | Session lifecycle. |
 | `GET /api/setup/status` · `POST /api/setup` | First-admin bootstrap. Public only while `users` is empty. |
 | `GET/PATCH /api/store` | Store settings. |
@@ -638,15 +642,17 @@ GROUP BY p.sku, sl.qty_units
 HAVING sl.qty_units <> COALESCE(SUM(sm.delta_units), 0);
 ```
 
-A healthy restore returns no rows.
+A healthy restore returns no rows. A dated run of this procedure against seeded
+data, with the integrity check, is recorded in
+[`docs/release/backup-restore-2026-07-26.md`](docs/release/backup-restore-2026-07-26.md).
 
 ---
 
 ## 13. Automated tests
 
-The suite holds 89 test cases across 7 files. The tests are integration-oriented
-and run against a real PostgreSQL database. The pure Rules Engine has unit tests.
-Each database integration test resets the application tables first.
+The suite spans 8 test files. The tests are integration-oriented and run against
+a real PostgreSQL database. The pure Rules Engine has unit tests. Each database
+integration test resets the application tables first.
 
 Run the whole suite from `app/`:
 
@@ -661,6 +667,7 @@ bun test
 | `server/test/auth.integration.test.ts` | Session lifecycle, token hashing, setup concurrency, RBAC. |
 | `server/test/catalog-rules.test.ts` | Unit breakdown, product state, and pricing rules. |
 | `server/test/catalog.integration.test.ts` | Catalog CRUD, publish immutability, archiving. |
+| `server/test/health.integration.test.ts` | Liveness and database-readiness probes. |
 | `server/test/wave1.integration.test.ts` | Administration, pricing, suppliers, expenses, reports. |
 | `server/test/wave2.integration.test.ts` | POS cash sales, no-negative-stock, PO receipts. |
 | `server/test/wave3.integration.test.ts` | Credit sales, invoices, customer payments, analytics. |
@@ -716,13 +723,17 @@ The full set lives in [`docs/evidence/`](docs/evidence/).
 
 ## 15. Security
 
-- **Authentication:** the server hashes passwords with Argon2id. A login sets an
-  httpOnly session cookie. The cookie is `Secure` when `NODE_ENV=production`.
+- **Authentication:** the server hashes passwords with Argon2id. A login returns
+  a generic error and does one hash even for an unknown user, so timing does not
+  reveal whether an account exists. The session token is 32 random bytes; the
+  server stores only its SHA-256 hash.
+- **Session cookie:** the cookie is `httpOnly` and `SameSite=Lax`, and `Secure`
+  when `NODE_ENV=production`. CORS is pinned to `CLIENT_ORIGIN` with credentials.
 - **Authorization:** the `rbac()` middleware enforces the permission matrix on
   every protected route. The API is the authority. The client only filters the
   navigation for display.
 - **Input validation:** Zod validates every request body, parameter, and query at
-  the API boundary.
+  the API boundary. All queries are parameterized through Drizzle.
 - **Secrets:** no credentials are committed. The application reads configuration
   from the environment. `app/.env` is git-ignored. `app/.env.example` documents
   the variables without real values.
@@ -730,6 +741,9 @@ The full set lives in [`docs/evidence/`](docs/evidence/).
   Database CHECK constraints back up the Rules Engine.
 - **Audit trail:** the stock ledger is append-only. Published records are
   immutable. Corrections use reversal entries.
+- **Threat model:** [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) covers the
+  assets, trust boundaries, threats, and mitigations, and the risks accepted for
+  Release 1 (for example, login rate-limiting is delegated to the edge).
 
 ---
 
@@ -771,7 +785,7 @@ CS425-shelf-life/
       src/services/        # Service layer
       src/rules/           # Rules Engine (pure)
       src/repos/           # Repository layer
-      src/middleware/      # Auth, RBAC, validation
+      src/middleware/      # Auth, RBAC, validation, request logging
       test/                # Integration and unit tests
     shared/                # Zod contracts, types, permission matrix
     db/                    # Drizzle schema, migrations, seed, DB tests
@@ -794,4 +808,7 @@ CS425-shelf-life/
 | Collaboration and VOPC Diagrams (Lab 5) | [`docs/Lab 5.pdf`](docs/Lab%205.pdf) |
 | Architecture Decision Records | [`docs/adr/`](docs/adr/) |
 | Release readiness and operator guide | [`RELEASE.md`](RELEASE.md) |
+| Threat model | [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) |
+| Performance budget and measured run | [`docs/release/performance-budget.md`](docs/release/performance-budget.md) |
+| Backup and restore evidence | [`docs/release/backup-restore-2026-07-26.md`](docs/release/backup-restore-2026-07-26.md) |
 | UI evidence (screenshots) | [`docs/evidence/`](docs/evidence/) |
