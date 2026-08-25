@@ -342,10 +342,19 @@ export function useReceiveDelivery() {
 
 // ---- sales (POS) ------------------------------------------------------------
 
-export function useSales() {
+export function useSales(range?: { from?: string; to?: string }) {
+	const params = new URLSearchParams();
+	if (range?.from) {
+		params.set("from", range.from);
+	}
+	if (range?.to) {
+		params.set("to", range.to);
+	}
+	const query = params.toString();
 	return useQuery<SaleSummary[], ApiError>({
-		queryKey: ["sales"],
-		queryFn: () => api.get<SaleSummary[]>("/api/sales"),
+		queryKey: ["sales", { from: range?.from ?? null, to: range?.to ?? null }],
+		queryFn: () =>
+			api.get<SaleSummary[]>(`/api/sales${query ? `?${query}` : ""}`),
 	});
 }
 

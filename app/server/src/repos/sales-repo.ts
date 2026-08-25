@@ -35,6 +35,8 @@ const saleSelection = {
 	id: sales.id,
 	clerkId: sales.clerkId,
 	clerkName: users.name,
+	customerId: customers.id,
+	customerName: customers.name,
 	soldAt: sales.soldAt,
 	type: sales.type,
 	total: sales.total,
@@ -252,8 +254,10 @@ export class SalesRepo {
 			})
 			.from(sales)
 			.innerJoin(users, eq(users.id, sales.clerkId))
+			.leftJoin(invoices, eq(invoices.saleId, sales.id))
+			.leftJoin(customers, eq(customers.id, invoices.customerId))
 			.leftJoin(saleLines, eq(saleLines.saleId, sales.id))
-			.groupBy(sales.id, users.id)
+			.groupBy(sales.id, users.id, customers.id)
 			.orderBy(desc(sales.soldAt), desc(sales.createdAt))
 			.limit(100);
 
@@ -265,6 +269,8 @@ export class SalesRepo {
 			.select(saleSelection)
 			.from(sales)
 			.innerJoin(users, eq(users.id, sales.clerkId))
+			.leftJoin(invoices, eq(invoices.saleId, sales.id))
+			.leftJoin(customers, eq(customers.id, invoices.customerId))
 			.where(eq(sales.id, id));
 		if (!sale) {
 			return undefined;
