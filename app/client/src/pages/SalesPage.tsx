@@ -1,5 +1,13 @@
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
+	Minus,
+	TrendingDown,
+	TrendingUp,
+} from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import { useSale, useSales } from "@/api/hooks";
 import type { SaleSummary } from "@/api/types";
 import { EmptyState, ErrorNote, Money, PageHeader } from "@/components/bits";
@@ -12,73 +20,97 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { addDays, startOfDay, startOfWeek, toISODate } from "@/lib/dates";
 
-function startOfWeek(date: Date): Date {
-	const local = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-	const mondayOffset = (local.getDay() + 6) % 7;
-	local.setDate(local.getDate() - mondayOffset);
-	return local;
-}
-
-function addDays(date: Date, amount: number): Date {
-	const next = new Date(date);
-	next.setDate(next.getDate() + amount);
-	return next;
-}
-
-function toISODate(date: Date): string {
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
-
-function fromISODate(iso: string): Date {
-	const [year, month, day] = iso.split("-").map(Number);
-	return new Date(year, month - 1, day);
-}
-
-const weekLabelFormat = new Intl.DateTimeFormat(undefined, {
-	month: "short",
-	day: "numeric",
-});
 const dayHeadingFormat = new Intl.DateTimeFormat(undefined, {
 	weekday: "long",
 	month: "short",
 	day: "numeric",
+	year: "numeric",
 });
+const weekLabelFormat = new Intl.DateTimeFormat(undefined, {
+	month: "short",
+	day: "numeric",
+});
+const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: "narrow" });
 const timeFormat = new Intl.DateTimeFormat(undefined, {
 	hour: "numeric",
 	minute: "2-digit",
 });
-
-type DayGroup = { key: string; date: Date; sales: SaleSummary[] };
-
-function groupByDay(sales: SaleSummary[]): DayGroup[] {
-	const groups = new Map<string, SaleSummary[]>();
-	for (const sale of sales) {
-		const key = toISODate(new Date(sale.soldAt));
-		const bucket = groups.get(key);
-		if (bucket) {
-			bucket.push(sale);
-		} else {
-			groups.set(key, [sale]);
-		}
-	}
-	return [...groups.entries()]
-		.sort((left, right) => right[0].localeCompare(left[0]))
-		.map(([key, daySales]) => ({
-			key,
-			date: fromISODate(key),
-			sales: daySales,
-		}));
-}
 
 function sumField(
 	sales: SaleSummary[],
 	field: "total" | "totalProfit",
 ): number {
 	return sales.reduce((sum, sale) => sum + Number(sale[field]), 0);
+}
+
+/** Reads ?day=YYYY-MM-DD, falling back to today for a missing or future date. */
+function dayFromParam(value: string | null): Date {
+	const today = startOfDay(new Date());
+	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return today;
+	}
+	const [year, month, date] = value.split("-").map(Number);
+	const parsed = new Date(year, month - 1, date);
+	return Number.isNaN(parsed.getTime()) || parsed > today ? today : parsed;
+}
+
+function salesOn(sales: SaleSummary[], day: Date): SaleSummary[] {
+	const key = toISODate(day);
+	return sales.filter((sale) => toISODate(new Date(sale.soldAt)) === key);
+}
+
+/** Percentage change against the previous week; null when there is no base. */
+function changeAgainst(current: number, previous: number): number | null {
+	if (previous === 0) {
+		return null;
+	}
+	return ((current - previous) / previous) * 100;
+}
+
+function Trend({ change }: { change: number | null }) {
+	if (change === null) {
+		return (
+			<span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+				<Minus aria-hidden className="size-3" />
+				no sales last week
+			</span>
+		);
+	}
+	const flat = Math.abs(change) < 0.5;
+	const up = change > 0;
+	const Icon = flat ? Minus : up ? TrendingUp : TrendingDown;
+	const tone = flat
+		? "text-muted-foreground"
+		: up
+			? "text-primary"
+			: "text-destructive";
+	return (
+		<span className={`inline-flex items-center gap-1 text-xs ${tone}`}>
+			<Icon aria-hidden className="size-3" />
+			{flat ? "level with" : `${up ? "+" : ""}${change.toFixed(0)}% vs`} last
+			week
+		</span>
+	);
+}
+
+function StatTile({
+	label,
+	value,
+	change,
+}: {
+	label: string;
+	value: React.ReactNode;
+	change: number | null;
+}) {
+	return (
+		<div className="rounded-xl border bg-card px-4 py-3">
+			<p className="text-xs text-muted-foreground">{label}</p>
+			<p className="font-display text-xl font-semibold">{value}</p>
+			<Trend change={change} />
+		</div>
+	);
 }
 
 function SaleLines({ saleId }: { saleId: string }) {
@@ -138,23 +170,48 @@ function SaleLines({ saleId }: { saleId: string }) {
 }
 
 export default function SalesPage() {
-	const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+	const [searchParams] = useSearchParams();
+	// ?day=YYYY-MM-DD seeds the opening day, so other pages can link to a date.
+	const [day, setDay] = useState(() => dayFromParam(searchParams.get("day")));
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 
-	const weekEnd = addDays(weekStart, 7);
-	const range = useMemo(
-		() => ({ from: toISODate(weekStart), to: toISODate(weekEnd) }),
-		[weekStart, weekEnd],
-	);
-	const sales = useSales(range);
+	const today = startOfDay(new Date());
+	const isToday = toISODate(day) === toISODate(today);
 
-	const isCurrentWeek =
-		toISODate(weekStart) === toISODate(startOfWeek(new Date()));
+	const weekStart = useMemo(() => startOfWeek(day), [day]);
+	const weekDays = useMemo(
+		() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
+		[weekStart],
+	);
+
+	const weekRange = useMemo(
+		() => ({
+			from: toISODate(weekStart),
+			to: toISODate(addDays(weekStart, 7)),
+		}),
+		[weekStart],
+	);
+	const previousRange = useMemo(
+		() => ({
+			from: toISODate(addDays(weekStart, -7)),
+			to: toISODate(weekStart),
+		}),
+		[weekStart],
+	);
+
+	const week = useSales(weekRange);
+	const previous = useSales(previousRange);
+
+	const weekSales = week.data ?? [];
+	const daySales = useMemo(() => salesOn(weekSales, day), [weekSales, day]);
 
 	// Only stable state setters are used, so the handler needs no dependencies.
-	const shiftWeek = useCallback((weeks: number) => {
+	const shiftDay = useCallback((days: number) => {
 		setExpandedId(null);
-		setWeekStart((current) => addDays(current, weeks * 7));
+		setDay((current) => {
+			const next = addDays(current, days);
+			return next > startOfDay(new Date()) ? current : next;
+		});
 	}, []);
 
 	useEffect(() => {
@@ -165,65 +222,164 @@ export default function SalesPage() {
 				return;
 			}
 			if (event.key === "ArrowLeft") {
-				shiftWeek(-1);
+				shiftDay(-1);
 			} else if (event.key === "ArrowRight") {
-				shiftWeek(1);
+				shiftDay(1);
 			}
 		}
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [shiftWeek]);
+	}, [shiftDay]);
 
-	const days = useMemo(() => groupByDay(sales.data ?? []), [sales.data]);
+	const weekRevenue = sumField(weekSales, "total");
+	const weekProfit = sumField(weekSales, "totalProfit");
+	const previousSales = previous.data ?? [];
+	const previousRevenue = sumField(previousSales, "total");
+	const previousProfit = sumField(previousSales, "totalProfit");
+
+	const perDay = weekDays.map((date) => {
+		const sales = salesOn(weekSales, date);
+		return { date, revenue: sumField(sales, "total"), count: sales.length };
+	});
+	const peak = Math.max(...perDay.map((entry) => entry.revenue), 0);
+	const best = perDay.reduce(
+		(leader, entry) => (entry.revenue > leader.revenue ? entry : leader),
+		perDay[0],
+	);
+
 	const weekLabel = `${weekLabelFormat.format(weekStart)} – ${weekLabelFormat.format(
 		addDays(weekStart, 6),
-	)}, ${addDays(weekStart, 6).getFullYear()}`;
-
-	const weekRevenue = sumField(sales.data ?? [], "total");
-	const weekProfit = sumField(sales.data ?? [], "totalProfit");
+	)}`;
 
 	return (
 		<div>
 			<PageHeader
 				title="Sales"
-				description="Every sale, grouped by day. Expand a sale to see its items. Use the arrows or ← → keys to move between weeks."
+				description="One day at a time. The panel compares this day's week with the week before. Use the arrows or ← → keys to move between days."
 			/>
 
-			<div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+			<section className="mb-8 space-y-4 rounded-xl border bg-muted/20 p-5">
+				<div className="flex flex-wrap items-baseline justify-between gap-2">
+					<h2 className="font-display text-lg font-semibold">
+						Week of {weekLabel}
+					</h2>
+					<p className="text-sm text-muted-foreground">
+						{best && best.revenue > 0 ? (
+							<>
+								Best day: {dayHeadingFormat.format(best.date).split(",")[0]} ·{" "}
+								<Money value={best.revenue.toFixed(2)} />
+							</>
+						) : (
+							"No sales this week yet."
+						)}
+					</p>
+				</div>
+
+				<div className="grid gap-3 sm:grid-cols-3">
+					<StatTile
+						label="Revenue"
+						value={<Money value={weekRevenue.toFixed(2)} />}
+						change={changeAgainst(weekRevenue, previousRevenue)}
+					/>
+					<StatTile
+						label="Profit"
+						value={<Money value={weekProfit.toFixed(2)} />}
+						change={changeAgainst(weekProfit, previousProfit)}
+					/>
+					<StatTile
+						label="Sales"
+						value={<span className="tabular-nums">{weekSales.length}</span>}
+						change={changeAgainst(weekSales.length, previousSales.length)}
+					/>
+				</div>
+
+				<div className="flex items-end gap-2">
+					{perDay.map((entry) => {
+						const selected = toISODate(entry.date) === toISODate(day);
+						const height =
+							peak === 0 ? 4 : Math.max(4, (entry.revenue / peak) * 100);
+						const ahead = entry.date > today;
+						return (
+							<button
+								key={toISODate(entry.date)}
+								type="button"
+								disabled={ahead}
+								onClick={() => {
+									setExpandedId(null);
+									setDay(entry.date);
+								}}
+								title={`${dayHeadingFormat.format(entry.date)} — ${entry.count} ${
+									entry.count === 1 ? "sale" : "sales"
+								}`}
+								className="group flex flex-1 flex-col items-center gap-1.5 disabled:opacity-40"
+							>
+								<span className="text-xs text-muted-foreground tabular-nums">
+									{entry.revenue > 0
+										? Math.round(entry.revenue).toLocaleString()
+										: ""}
+								</span>
+								<span className="flex h-24 w-full items-end">
+									<span
+										style={{ height: `${height}%` }}
+										className={`w-full rounded-t-md transition-colors ${
+											selected
+												? "bg-primary"
+												: "bg-primary/25 group-hover:bg-primary/45"
+										}`}
+									/>
+								</span>
+								<span
+									className={`text-xs ${
+										selected
+											? "font-semibold text-foreground"
+											: "text-muted-foreground"
+									}`}
+								>
+									{weekdayFormat.format(entry.date)}
+								</span>
+							</button>
+						);
+					})}
+				</div>
+			</section>
+
+			<div className="mb-4 flex flex-wrap items-center justify-between gap-4">
 				<div className="flex items-center gap-2">
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={() => shiftWeek(-1)}
-						aria-label="Previous week"
+						onClick={() => shiftDay(-1)}
+						aria-label="Previous day"
 					>
 						<ChevronLeft className="size-4" />
 					</Button>
-					<div className="min-w-44 text-center">
-						<p className="font-display font-semibold">{weekLabel}</p>
-						{isCurrentWeek ? (
-							<p className="text-xs text-muted-foreground">This week</p>
+					<div className="min-w-56 text-center">
+						<p className="font-display font-semibold">
+							{dayHeadingFormat.format(day)}
+						</p>
+						{isToday ? (
+							<p className="text-xs text-muted-foreground">Today</p>
 						) : null}
 					</div>
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={() => shiftWeek(1)}
-						disabled={isCurrentWeek}
-						aria-label="Next week"
+						onClick={() => shiftDay(1)}
+						disabled={isToday}
+						aria-label="Next day"
 					>
 						<ChevronRight className="size-4" />
 					</Button>
-					{isCurrentWeek ? null : (
+					{isToday ? null : (
 						<Button
 							variant="ghost"
 							size="sm"
 							onClick={() => {
 								setExpandedId(null);
-								setWeekStart(startOfWeek(new Date()));
+								setDay(startOfDay(new Date()));
 							}}
 						>
-							This week
+							Today
 						</Button>
 					)}
 				</div>
@@ -231,117 +387,96 @@ export default function SalesPage() {
 					<div>
 						<span className="text-muted-foreground">Revenue </span>
 						<span className="font-medium">
-							<Money value={weekRevenue.toFixed(2)} />
+							<Money value={sumField(daySales, "total").toFixed(2)} />
 						</span>
 					</div>
 					<div>
 						<span className="text-muted-foreground">Profit </span>
 						<span className="font-medium">
-							<Money value={weekProfit.toFixed(2)} />
+							<Money value={sumField(daySales, "totalProfit").toFixed(2)} />
 						</span>
 					</div>
 					<div>
 						<span className="text-muted-foreground">Sales </span>
-						<span className="font-medium tabular-nums">
-							{sales.data?.length ?? 0}
-						</span>
+						<span className="font-medium tabular-nums">{daySales.length}</span>
 					</div>
 				</div>
 			</div>
 
-			{sales.isError ? <ErrorNote message={sales.error.message} /> : null}
+			{week.isError ? <ErrorNote message={week.error.message} /> : null}
 
-			{sales.data && days.length === 0 ? (
+			{week.data && daySales.length === 0 ? (
 				<EmptyState
-					title="No sales this week"
-					hint="Nothing was sold in this week. Move to another week with the arrows, or record a sale on the Sell page."
+					title="No sales on this day"
+					hint="Nothing was sold. Pick another day with the arrows or the bars above, or record a sale on the Sell page."
 				/>
 			) : (
-				<div className="space-y-8">
-					{days.map((day) => (
-						<section key={day.key} className="space-y-2">
-							<div className="flex items-baseline justify-between border-b pb-2">
-								<h2 className="font-display text-lg font-semibold">
-									{dayHeadingFormat.format(day.date)}
-								</h2>
-								<p className="text-sm text-muted-foreground">
-									{day.sales.length} {day.sales.length === 1 ? "sale" : "sales"}{" "}
-									· <Money value={sumField(day.sales, "total").toFixed(2)} />
-								</p>
-							</div>
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead className="w-8" />
-										<TableHead>Time</TableHead>
-										<TableHead>Customer</TableHead>
-										<TableHead>Type</TableHead>
-										<TableHead>Clerk</TableHead>
-										<TableHead className="text-right">Items</TableHead>
-										<TableHead className="text-right">Total</TableHead>
-										<TableHead className="text-right">Profit</TableHead>
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-8" />
+							<TableHead>Time</TableHead>
+							<TableHead>Customer</TableHead>
+							<TableHead>Type</TableHead>
+							<TableHead>Clerk</TableHead>
+							<TableHead className="text-right">Items</TableHead>
+							<TableHead className="text-right">Total</TableHead>
+							<TableHead className="text-right">Profit</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{daySales.map((sale) => {
+							const expanded = expandedId === sale.id;
+							return (
+								<Fragment key={sale.id}>
+									<TableRow
+										className="cursor-pointer"
+										onClick={() => setExpandedId(expanded ? null : sale.id)}
+									>
+										<TableCell>
+											<ChevronDown
+												className={`size-4 text-muted-foreground transition-transform ${
+													expanded ? "" : "-rotate-90"
+												}`}
+											/>
+										</TableCell>
+										<TableCell className="tabular-nums">
+											{timeFormat.format(new Date(sale.soldAt))}
+										</TableCell>
+										<TableCell>
+											{sale.customerName ?? (
+												<span className="text-muted-foreground">Walk-in</span>
+											)}
+										</TableCell>
+										<TableCell>
+											{sale.type === "credit" ? "Credit" : "Cash"}
+										</TableCell>
+										<TableCell className="text-muted-foreground">
+											{sale.clerkName}
+										</TableCell>
+										<TableCell className="text-right tabular-nums">
+											{sale.lineCount}
+										</TableCell>
+										<TableCell className="text-right">
+											<Money value={sale.total} />
+										</TableCell>
+										<TableCell className="text-right">
+											<Money value={sale.totalProfit} />
+										</TableCell>
 									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{day.sales.map((sale) => {
-										const expanded = expandedId === sale.id;
-										return (
-											<Fragment key={sale.id}>
-												<TableRow
-													className="cursor-pointer"
-													onClick={() =>
-														setExpandedId(expanded ? null : sale.id)
-													}
-												>
-													<TableCell>
-														<ChevronDown
-															className={`size-4 text-muted-foreground transition-transform ${
-																expanded ? "" : "-rotate-90"
-															}`}
-														/>
-													</TableCell>
-													<TableCell className="tabular-nums">
-														{timeFormat.format(new Date(sale.soldAt))}
-													</TableCell>
-													<TableCell>
-														{sale.customerName ?? (
-															<span className="text-muted-foreground">
-																Walk-in
-															</span>
-														)}
-													</TableCell>
-													<TableCell>
-														{sale.type === "credit" ? "Credit" : "Cash"}
-													</TableCell>
-													<TableCell className="text-muted-foreground">
-														{sale.clerkName}
-													</TableCell>
-													<TableCell className="text-right tabular-nums">
-														{sale.lineCount}
-													</TableCell>
-													<TableCell className="text-right">
-														<Money value={sale.total} />
-													</TableCell>
-													<TableCell className="text-right">
-														<Money value={sale.totalProfit} />
-													</TableCell>
-												</TableRow>
-												{expanded ? (
-													<TableRow>
-														<TableCell />
-														<TableCell colSpan={7} className="bg-muted/30">
-															<SaleLines saleId={sale.id} />
-														</TableCell>
-													</TableRow>
-												) : null}
-											</Fragment>
-										);
-									})}
-								</TableBody>
-							</Table>
-						</section>
-					))}
-				</div>
+									{expanded ? (
+										<TableRow>
+											<TableCell />
+											<TableCell colSpan={7} className="bg-muted/30">
+												<SaleLines saleId={sale.id} />
+											</TableCell>
+										</TableRow>
+									) : null}
+								</Fragment>
+							);
+						})}
+					</TableBody>
+				</Table>
 			)}
 		</div>
 	);

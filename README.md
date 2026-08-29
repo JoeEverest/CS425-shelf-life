@@ -44,7 +44,7 @@ Tests.
 
 A general store starts small. One owner tracks stock, sales, and expenses in a
 notebook. This method fails as the store grows. The store now carries hundreds of
-products, employs several clerks, buys from several suppliers on credit terms, and
+products, employs several people, buys from several suppliers on credit, and
 extends credit to customers. Stock counts drift out of sync. Fast-moving items run
 out without warning. Profit becomes hard to compute when goods are bought in bulk
 but sold as single units. No one has a reliable picture of the store's finances.
@@ -52,7 +52,7 @@ but sold as single units. No one has a reliable picture of the store's finances.
 ### Purpose
 
 ShelfLife replaces the notebook with one integrated tool. Every number on screen
-is a claim the business relies on, so the system keeps stock, balances, and profit
+is a claim the business can rely on, so the system keeps stock, balances, and profit
 provably correct.
 
 ### Scope
@@ -81,25 +81,25 @@ ShelfLife covers the operations of one general store:
 
 - Store setup and employee management with role assignment.
 - Product catalog with the bulk-to-unit breakdown and category grouping.
-- Velocity-based low-stock alerts, not a flat threshold.
+- Velocity-based low-stock alerts, calculated from sales trends.
 - Point-of-sale screen for cash and credit sales.
 - Purchase orders, delivery sign-off, and supplier payments.
 - Customer invoices and customer payments.
 - Expense records and a period financial report.
-- Analytics dashboard and days-to-stockout projections.
+- Analytics dashboard and stock run out projections.
 
 ### Assumptions
 
 - The system manages one store and one currency, both set at setup.
 - The Admin performs setup and creates the first accounts.
 - Bulk units convert to sale units by a fixed positive integer.
-- Users reach the system through a modern web browser.
+- Users reach the system through a web browser.
 
 ### Constraints
 
-- Single store, single currency, and no external integrations in Release 1.
+- Single store, single currency, and no external integrations.
 - Bulk units convert by a fixed positive integer only.
-- The stack is TypeScript on the Bun runtime. The course is technology-neutral.
+- The stack is TypeScript on the Bun runtime.
 
 ---
 
@@ -255,14 +255,14 @@ flowchart TB
 
 **Layer discipline:** routes never touch Drizzle directly. Services never read
 HTTP objects. The Rules Engine is pure functions with no I/O, so unit tests are
-trivial.
+easy.
 
 ---
 
 ## 6. Design diagrams
 
-The Lab 4 sequence diagrams and the Lab 5 collaboration and VOPC diagrams realize
-the three flagship use cases. The two documents hold the full set:
+The Lab 4 sequence diagrams and the Lab 5 collaboration and VOPC diagrams show
+the three use cases.
 
 - Sequence diagrams: [`docs/Lab 4.pdf`](docs/Lab%204.pdf) — Record Sale, Record and
   Sign Off Delivery, Create Purchase Order.
@@ -650,9 +650,9 @@ data, with the integrity check, is recorded in
 
 ## 13. Automated tests
 
-The suite spans 8 test files. The tests are integration-oriented and run against
-a real PostgreSQL database. The pure Rules Engine has unit tests. Each database
-integration test resets the application tables first.
+The tests are integration-oriented and run against a real PostgreSQL database. 
+The pure Rules Engine has unit tests. Each database integration test resets 
+the application tables first.
 
 Run the whole suite from `app/`:
 
@@ -763,10 +763,10 @@ The full set lives in [`docs/evidence/`](docs/evidence/).
 
 ### Future work
 
-- Multi-branch and multi-currency support.
-- Demand forecasting beyond days-to-stockout.
 - Barcode scanning and receipt printing.
 - A self-service password reset flow.
+- Demand forecasting beyond of stock remaining.
+- Multi-branch support.
 - Cloud deployment with a managed PostgreSQL database and secrets in an
   environment or secrets service.
 

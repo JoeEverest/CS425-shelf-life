@@ -7,14 +7,17 @@ import {
 	usePurchaseOrders,
 	useSuppliers,
 } from "@/api/hooks";
+import type { PurchaseOrderSummary } from "@/api/types";
 import {
 	EmptyState,
 	ErrorNote,
 	Money,
 	PageHeader,
 	Qty,
+	SearchInput,
 } from "@/components/bits";
 import { ReceiveDialog } from "@/components/ReceiveDialog";
+import { SortableHead } from "@/components/SortableHead";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -38,7 +41,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { compareValues, useSortState } from "@/hooks/use-sort";
 import { can, PERMISSIONS } from "@/lib/access";
+import { addDays, startOfDay } from "@/lib/dates";
+import { mediumDate } from "@/lib/format";
 
 const STATUS_LABELS = {
 	open: "Open",
@@ -302,10 +308,73 @@ function PoDetailDialog({ poId, label }: { poId: string; label: string }) {
 	);
 }
 
+type OrderSortKey = "supplier" | "placed" | "lines" | "value" | "status";
+type OrderFilter = "all" | "open" | "partially_received" | "received";
+type PlacedFilter = "any" | "7" | "30" | "90";
+
+const PLACED_LABELS: Record<PlacedFilter, string> = {
+	any: "Any date",
+	"7": "Placed in last 7 days",
+	"30": "Placed in last 30 days",
+	"90": "Placed in last 90 days",
+};
+
+function orderValue(
+	order: PurchaseOrderSummary,
+	key: OrderSortKey,
+): string | number {
+	switch (key) {
+		case "placed":
+			return new Date(order.createdAt).getTime();
+		case "lines":
+			return order.lineCount;
+		case "value":
+			return Number(order.totalValue);
+		case "status":
+			return STATUS_LABELS[order.status];
+		default:
+			return order.supplierName;
+	}
+}
+
 export default function PurchaseOrdersPage() {
 	const me = useMe();
 	const orders = usePurchaseOrders();
+	const [query, setQuery] = useState("");
+	const [status, setStatus] = useState<OrderFilter>("all");
+	const [placed, setPlaced] = useState<PlacedFilter>("any");
+	const { sort, toggle } = useSortState<OrderSortKey>("placed", "desc");
 	const roles = me.data?.roles ?? [];
+
+	const rows = useMemo(() => {
+		const q = query.trim().toLowerCase();
+		const cutoff =
+			placed === "any"
+				? null
+				: addDays(startOfDay(new Date()), -Number(placed)).getTime();
+		const filtered = (orders.data ?? []).filter((order) => {
+			if (status !== "all" && order.status !== status) {
+				return false;
+			}
+			if (cutoff !== null && new Date(order.createdAt).getTime() < cutoff) {
+				return false;
+			}
+			if (q === "") {
+				return true;
+			}
+			return (
+				order.supplierName.toLowerCase().includes(q) ||
+				STATUS_LABELS[order.status].toLowerCase().includes(q)
+			);
+		});
+		return filtered.sort((left, right) =>
+			compareValues(
+				orderValue(left, sort.key),
+				orderValue(right, sort.key),
+				sort.direction,
+			),
+		);
+	}, [orders.data, query, status, placed, sort]);
 	const canCreate = can(roles, PERMISSIONS.PURCHASE_ORDERS_CREATE);
 	const canReceive = can(roles, PERMISSIONS.DELIVERIES_SIGN_OFF);
 	const canConfirmDiscrepancy = can(
@@ -328,48 +397,113 @@ export default function PurchaseOrdersPage() {
 					action={canCreate ? <CreatePoDialog /> : undefined}
 				/>
 			) : (
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Supplier</TableHead>
-							<TableHead>Placed</TableHead>
-							<TableHead className="text-right">Lines</TableHead>
-							<TableHead className="text-right">Value</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{(orders.data ?? []).map((order) => (
-							<TableRow key={order.id}>
-								<TableCell className="font-medium">
-									{order.supplierName}
-								</TableCell>
-								<TableCell className="text-muted-foreground tabular-nums">
-									{new Date(order.createdAt).toLocaleDateString()}
-								</TableCell>
-								<TableCell className="text-right tabular-nums">
-									{order.lineCount}
-								</TableCell>
-								<TableCell className="text-right">
-									<Money value={order.totalValue} />
-								</TableCell>
-								<TableCell>{STATUS_LABELS[order.status]}</TableCell>
-								<TableCell className="text-right">
-									<div className="flex justify-end gap-2">
-										{canReceive && order.status !== "received" ? (
-											<ReceiveDialog
-												poId={order.id}
-												canConfirmDiscrepancy={canConfirmDiscrepancy}
-											/>
-										) : null}
-										<PoDetailDialog poId={order.id} label="View" />
-									</div>
-								</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
+				<div className="space-y-4">
+					<div className="flex flex-wrap items-center gap-3">
+						<SearchInput
+							value={query}
+							onChange={setQuery}
+							label="Search purchase orders"
+							placeholder="Search by supplier or status…"
+						/>
+						<NativeSelect
+							aria-label="Filter by status"
+							value={status}
+							onChange={(event) => setStatus(event.target.value as OrderFilter)}
+						>
+							<NativeSelectOption value="all">All statuses</NativeSelectOption>
+							<NativeSelectOption value="open">Open</NativeSelectOption>
+							<NativeSelectOption value="partially_received">
+								Partly received
+							</NativeSelectOption>
+							<NativeSelectOption value="received">Received</NativeSelectOption>
+						</NativeSelect>
+						<NativeSelect
+							aria-label="Filter by placed date"
+							value={placed}
+							onChange={(event) =>
+								setPlaced(event.target.value as PlacedFilter)
+							}
+						>
+							{(["any", "7", "30", "90"] as const).map((option) => (
+								<NativeSelectOption key={option} value={option}>
+									{PLACED_LABELS[option]}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+						<span className="ml-auto text-sm text-muted-foreground tabular-nums">
+							{rows.length} of {orders.data?.length ?? 0}
+						</span>
+					</div>
+
+					{rows.length === 0 ? (
+						<p className="rounded-lg border border-dashed px-6 py-10 text-sm text-muted-foreground">
+							No purchase order matches this search.
+						</p>
+					) : (
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<SortableHead column="supplier" sort={sort} onSort={toggle}>
+										Supplier
+									</SortableHead>
+									<SortableHead column="placed" sort={sort} onSort={toggle}>
+										Placed
+									</SortableHead>
+									<SortableHead
+										column="lines"
+										sort={sort}
+										onSort={toggle}
+										className="text-right"
+									>
+										Lines
+									</SortableHead>
+									<SortableHead
+										column="value"
+										sort={sort}
+										onSort={toggle}
+										className="text-right"
+									>
+										Value
+									</SortableHead>
+									<SortableHead column="status" sort={sort} onSort={toggle}>
+										Status
+									</SortableHead>
+									<TableHead />
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{rows.map((order) => (
+									<TableRow key={order.id}>
+										<TableCell className="font-medium">
+											{order.supplierName}
+										</TableCell>
+										<TableCell className="text-muted-foreground tabular-nums">
+											{mediumDate.format(new Date(order.createdAt))}
+										</TableCell>
+										<TableCell className="text-right tabular-nums">
+											{order.lineCount}
+										</TableCell>
+										<TableCell className="text-right">
+											<Money value={order.totalValue} />
+										</TableCell>
+										<TableCell>{STATUS_LABELS[order.status]}</TableCell>
+										<TableCell className="text-right">
+											<div className="flex justify-end gap-2">
+												{canReceive && order.status !== "received" ? (
+													<ReceiveDialog
+														poId={order.id}
+														canConfirmDiscrepancy={canConfirmDiscrepancy}
+													/>
+												) : null}
+												<PoDetailDialog poId={order.id} label="View" />
+											</div>
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					)}
+				</div>
 			)}
 		</div>
 	);

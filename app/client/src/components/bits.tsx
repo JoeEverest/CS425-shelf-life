@@ -1,5 +1,7 @@
+import { Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { useStore } from "@/api/hooks";
+import { Input } from "@/components/ui/input";
 
 export function PageHeader({
 	title,
@@ -27,12 +29,50 @@ export function PageHeader({
 	);
 }
 
+export function SearchInput({
+	value,
+	onChange,
+	label,
+	placeholder,
+}: {
+	value: string;
+	onChange: (value: string) => void;
+	label: string;
+	placeholder: string;
+}) {
+	return (
+		<div className="relative w-full max-w-sm">
+			<Search
+				aria-hidden
+				className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+			/>
+			<Input
+				type="search"
+				aria-label={label}
+				placeholder={placeholder}
+				value={value}
+				onChange={(event) => onChange(event.target.value)}
+				className="pl-9"
+			/>
+		</div>
+	);
+}
+
+const moneyFormat = new Intl.NumberFormat(undefined, {
+	minimumFractionDigits: 2,
+	maximumFractionDigits: 2,
+});
+
 export function Money({ value }: { value: string | number | null }) {
 	const { data: store } = useStore();
 	if (value === null) {
 		return <span className="text-muted-foreground">—</span>;
 	}
-	const amount = typeof value === "number" ? value.toFixed(2) : value;
+	const numeric = typeof value === "number" ? value : Number(value);
+	// Amounts arrive as decimal strings; keep the raw text if one is not a number.
+	const amount = Number.isFinite(numeric)
+		? moneyFormat.format(numeric)
+		: String(value);
 	return (
 		<span className="tabular-nums">
 			{store ? `${store.currency} ${amount}` : amount}

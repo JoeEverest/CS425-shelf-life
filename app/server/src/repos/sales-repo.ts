@@ -258,10 +258,12 @@ export class SalesRepo {
 			.leftJoin(customers, eq(customers.id, invoices.customerId))
 			.leftJoin(saleLines, eq(saleLines.saleId, sales.id))
 			.groupBy(sales.id, users.id, customers.id)
-			.orderBy(desc(sales.soldAt), desc(sales.createdAt))
-			.limit(100);
+			.orderBy(desc(sales.soldAt), desc(sales.createdAt));
 
-		return filters.length > 0 ? query.where(and(...filters)) : query;
+		// A bounded period returns every sale inside it: callers total these rows,
+		// and a silent cut would make the total wrong rather than merely short.
+		// Only the unbounded call is capped, where it means "the recent sales".
+		return filters.length > 0 ? query.where(and(...filters)) : query.limit(100);
 	}
 
 	async findSaleById(id: string) {

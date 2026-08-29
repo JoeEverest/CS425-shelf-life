@@ -395,10 +395,11 @@ export function useStockAlerts() {
 
 // ---- customers, invoices, payments ------------------------------------------
 
-export function useCustomers() {
+export function useCustomers(enabled = true) {
 	return useQuery<Customer[], ApiError>({
 		queryKey: ["customers"],
 		queryFn: () => api.get<Customer[]>("/api/customers"),
+		enabled,
 	});
 }
 
@@ -435,10 +436,15 @@ export function useRecordPayment() {
 
 // ---- analytics dashboard ----------------------------------------------------
 
-export function useDashboard() {
+export function useDashboard(range?: { from: string; to: string }) {
+	// The endpoint takes from and to together or not at all; `to` is exclusive.
+	const query = range ? `?from=${range.from}&to=${range.to}` : "";
 	return useQuery<Dashboard, ApiError>({
-		queryKey: ["dashboard"],
-		queryFn: () => api.get<Dashboard>("/api/analytics/dashboard"),
+		queryKey: [
+			"dashboard",
+			{ from: range?.from ?? null, to: range?.to ?? null },
+		],
+		queryFn: () => api.get<Dashboard>(`/api/analytics/dashboard${query}`),
 	});
 }
 

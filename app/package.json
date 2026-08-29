@@ -27,6 +27,7 @@
 		"db:generate": "bun run --cwd db generate",
 		"db:migrate": "bun run --cwd db migrate",
 		"db:seed": "bun run --cwd db seed",
+		"db:demo": "bun run --cwd db demo",
 		"postinstall": "turbo build --filter=shared --filter=server --filter=db"
 	},
 	"devDependencies": {

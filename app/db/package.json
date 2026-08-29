@@ -28,7 +28,8 @@
 		"test": "bun --env-file=../.env test ./test",
 		"generate": "drizzle-kit generate",
 		"migrate": "drizzle-kit migrate",
-		"seed": "bun --env-file=../.env run src/seed.ts"
+		"seed": "bun --env-file=../.env run src/seed.ts",
+		"demo": "bun --env-file=../.env run src/demo-data.ts"
 	},
 	"dependencies": {
 		"drizzle-orm": "^0.44.5",

@@ -6,6 +6,7 @@ import CustomersPage from "@/pages/CustomersPage";
 import DashboardPage from "@/pages/DashboardPage";
 import EmployeesPage from "@/pages/EmployeesPage";
 import ExpensesPage from "@/pages/ExpensesPage";
+import InvoicesPage from "@/pages/InvoicesPage";
 import LoginPage from "@/pages/LoginPage";
 import ProductsPage from "@/pages/ProductsPage";
 import ProjectionsPage from "@/pages/ProjectionsPage";
@@ -38,6 +39,7 @@ function App() {
 					<Route path="/sell" element={<SellPage />} />
 					<Route path="/sales" element={<SalesPage />} />
 					<Route path="/customers" element={<CustomersPage />} />
+					<Route path="/invoices" element={<InvoicesPage />} />
 					<Route path="/products" element={<ProductsPage />} />
 					<Route path="/stock" element={<StockPage />} />
 					<Route path="/suppliers" element={<SuppliersPage />} />

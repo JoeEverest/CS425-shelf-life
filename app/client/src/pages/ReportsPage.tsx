@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { useFinancialReport } from "@/api/hooks";
+import type { FinancialReport } from "@/api/types";
 import { Money, PageHeader } from "@/components/bits";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,174 @@ const CATEGORY_LABELS: Record<string, string> = {
 	salaries: "Salaries",
 	utilities: "Utilities",
 };
+
+function share(part: number, whole: number): string {
+	if (whole === 0) {
+		return "—";
+	}
+	return `${((part / whole) * 100).toFixed(1)}%`;
+}
+
+function Figure({
+	label,
+	value,
+	note,
+	tone,
+}: {
+	label: string;
+	value: ReactNode;
+	note: string;
+	tone?: "kept" | "loss";
+}) {
+	return (
+		<div className="bg-background py-4 sm:px-5 sm:first:pl-0">
+			<dt className="text-xs tracking-wide text-muted-foreground uppercase">
+				{label}
+			</dt>
+			<dd
+				className={
+					tone === "loss"
+						? "font-display text-2xl font-semibold text-destructive tabular-nums"
+						: tone === "kept"
+							? "font-display text-2xl font-semibold text-ledger-kept tabular-nums"
+							: "font-display text-2xl font-semibold tabular-nums"
+				}
+			>
+				{value}
+			</dd>
+			<dd className="text-sm text-muted-foreground">{note}</dd>
+		</div>
+	);
+}
+
+function ReportCharts({ report }: { report: FinancialReport }) {
+	const revenue = Number(report.revenue);
+	const cogs = Number(report.cogs);
+	const grossProfit = Number(report.grossProfit);
+	const expenses = Number(report.expensesTotal);
+	const net = Number(report.netProfit);
+
+	// Scaled to whichever side is larger, so a loss still fits the bar.
+	const base = Math.max(revenue, cogs + expenses, 1);
+
+	const categories = Object.entries(report.expensesByCategory)
+		.map(([key, amount]) => ({ key, amount: Number(amount) }))
+		.sort((left, right) => right.amount - left.amount);
+	const biggestCategory = categories[0]?.amount ?? 0;
+
+	// Grey for stock that left, amber for money spent, green for what stayed.
+	const segments = [
+		{
+			key: "cogs",
+			label: "Cost of goods",
+			amount: cogs,
+			fill: "bg-ledger-cost",
+		},
+		{
+			key: "expenses",
+			label: "Expenses",
+			amount: expenses,
+			fill: "bg-ledger-spend",
+		},
+		{
+			key: "net",
+			label: net < 0 ? "Shortfall" : "Kept",
+			amount: Math.abs(net),
+			fill: net < 0 ? "bg-destructive" : "bg-ledger-kept",
+		},
+	];
+
+	return (
+		<div className="space-y-10 pb-10">
+			<dl className="grid gap-px border-y bg-border sm:grid-cols-3">
+				<Figure
+					label="Revenue"
+					value={<Money value={report.revenue} />}
+					note={`${share(grossProfit, revenue)} kept as gross profit`}
+				/>
+				<Figure
+					label="Gross profit"
+					value={<Money value={report.grossProfit} />}
+					note={`cost of goods took ${share(cogs, revenue)}`}
+				/>
+				<Figure
+					label="Net profit"
+					value={<Money value={report.netProfit} />}
+					tone={net < 0 ? "loss" : "kept"}
+					note={`expenses took ${share(expenses, revenue)} of revenue`}
+				/>
+			</dl>
+
+			<section className="space-y-3">
+				<h2 className="font-display text-sm font-semibold">
+					Where the money went
+				</h2>
+				<div className="flex h-7 w-full gap-px overflow-hidden rounded-sm bg-muted">
+					{segments.map((segment) =>
+						segment.amount > 0 ? (
+							<span
+								key={segment.key}
+								title={`${segment.label}: ${segment.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+								style={{ width: `${(segment.amount / base) * 100}%` }}
+								className={segment.fill}
+							/>
+						) : null,
+					)}
+				</div>
+				<dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+					{segments.map((segment) => (
+						<div key={segment.key} className="flex items-baseline gap-2">
+							<span
+								aria-hidden
+								className={`size-2.5 translate-y-px rounded-xs ${segment.fill}`}
+							/>
+							<dt className="text-muted-foreground">{segment.label}</dt>
+							<dd className="font-medium tabular-nums">
+								<Money value={segment.amount.toFixed(2)} />
+							</dd>
+							<dd className="text-xs text-muted-foreground tabular-nums">
+								{share(segment.amount, revenue)}
+							</dd>
+						</div>
+					))}
+				</dl>
+				{net < 0 ? (
+					<p className="text-sm text-destructive">
+						Costs ran past revenue in this period.
+					</p>
+				) : null}
+			</section>
+
+			{categories.length > 0 ? (
+				<section className="space-y-3">
+					<h2 className="font-display text-sm font-semibold">
+						Expenses by category
+					</h2>
+					<div className="space-y-2">
+						{categories.map((entry) => (
+							<div key={entry.key} className="flex items-center gap-4">
+								<span className="w-28 shrink-0 text-sm text-muted-foreground">
+									{CATEGORY_LABELS[entry.key] ?? entry.key}
+								</span>
+								<span className="h-1.5 flex-1 rounded-full bg-muted">
+									<span
+										className="block h-full rounded-full bg-ledger-spend"
+										style={{
+											width: `${biggestCategory === 0 ? 0 : (entry.amount / biggestCategory) * 100}%`,
+										}}
+									/>
+								</span>
+								<span className="w-28 shrink-0 text-right text-sm tabular-nums">
+									<Money value={entry.amount.toFixed(2)} />
+								</span>
+							</div>
+						))}
+					</div>
+				</section>
+			) : null}
+		</div>
+	);
+}
 
 export default function ReportsPage() {
 	const [from, setFrom] = useState(monthStart());
@@ -69,6 +239,8 @@ export default function ReportsPage() {
 			{report.isError ? (
 				<p className="text-sm text-destructive">{report.error.message}</p>
 			) : null}
+
+			{report.data ? <ReportCharts report={report.data} /> : null}
 
 			{report.data ? (
 				<div className="max-w-xl">
