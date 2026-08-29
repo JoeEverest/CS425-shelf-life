@@ -622,30 +622,6 @@ documents the required variables. `app/.env` is ignored by git.
 | `CLIENT_ORIGIN` | Front-end origin allowed by CORS. |
 | `NODE_ENV` | Set to `production` so the session cookie is `Secure`. |
 
-### Backup and restore
-
-Back up the whole state with one logical dump:
-
-```bash
-pg_dump "$DATABASE_URL" --format=custom --file=shelflife-$(date +%F).dump
-```
-
-Because stock levels reconcile against the append-only ledger, an integrity check
-verifies a restore:
-
-```sql
-SELECT p.sku, sl.qty_units, COALESCE(SUM(sm.delta_units), 0) AS ledger_sum
-FROM products p
-JOIN stock_levels sl ON sl.product_id = p.id
-LEFT JOIN stock_movements sm ON sm.product_id = p.id
-GROUP BY p.sku, sl.qty_units
-HAVING sl.qty_units <> COALESCE(SUM(sm.delta_units), 0);
-```
-
-A healthy restore returns no rows. A dated run of this procedure against seeded
-data, with the integrity check, is recorded in
-[`docs/release/backup-restore-2026-07-26.md`](docs/release/backup-restore-2026-07-26.md).
-
 ---
 
 ## 13. Automated tests
@@ -692,36 +668,7 @@ history as evidence.
 
 ---
 
-## 14. Screenshots
-
-The `docs/evidence/` folder holds 22 UI screenshots. A selection follows.
-
-### Administration, pricing, and reporting
-
-![Login](docs/evidence/wave-1/01-login.png)
-![Products admin](docs/evidence/wave-1/02-products-admin.png)
-![Financial report](docs/evidence/wave-1/05-financial-report.png)
-
-### Point of sale and receiving
-
-![Point of sale](docs/evidence/wave-2/01-pos.png)
-![Receive dialog](docs/evidence/wave-2/04-receive-dialog.png)
-
-### Credit sales and analytics
-
-![Dashboard](docs/evidence/wave-3/01-dashboard.png)
-![Invoices](docs/evidence/wave-3/04-invoices.png)
-![Low stock](docs/evidence/wave-3/06-low-stock.png)
-
-### Projections
-
-![Projections](docs/evidence/wave-4/01-projections.png)
-
-The full set lives in [`docs/evidence/`](docs/evidence/).
-
----
-
-## 15. Security
+## 14. Security
 
 - **Authentication:** the server hashes passwords with Argon2id. A login returns
   a generic error and does one hash even for an unknown user, so timing does not
@@ -741,9 +688,6 @@ The full set lives in [`docs/evidence/`](docs/evidence/).
   Database CHECK constraints back up the Rules Engine.
 - **Audit trail:** the stock ledger is append-only. Published records are
   immutable. Corrections use reversal entries.
-- **Threat model:** [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) covers the
-  assets, trust boundaries, threats, and mitigations, and the risks accepted for
-  Release 1 (for example, login rate-limiting is delegated to the edge).
 
 ---
 
