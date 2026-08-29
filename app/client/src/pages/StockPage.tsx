@@ -1,7 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAdjustStock, useMe, useStock, useStockAlerts } from "@/api/hooks";
 import type { StockRow } from "@/api/types";
-import { EmptyState, ErrorNote, PageHeader, Qty } from "@/components/bits";
+import {
+	EmptyState,
+	ErrorNote,
+	PageHeader,
+	Qty,
+	SearchInput,
+} from "@/components/bits";
+import { SortableHead } from "@/components/SortableHead";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -14,6 +21,10 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
+	NativeSelect,
+	NativeSelectOption,
+} from "@/components/ui/native-select";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -22,6 +33,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { compareValues, useSortState } from "@/hooks/use-sort";
 import { can, PERMISSIONS } from "@/lib/access";
 
 function AlertsTab() {
@@ -163,10 +175,73 @@ function AdjustDialog({ row }: { row: StockRow }) {
 	);
 }
 
+type StockSortKey = "sku" | "name" | "qty";
+type StockFilter = "all" | "in" | "low" | "out";
+
+const STOCK_FILTER_LABELS: Record<StockFilter, string> = {
+	all: "All products",
+	in: "In stock",
+	low: "Running low",
+	out: "Out of stock",
+};
+
+function stockValue(row: StockRow, key: StockSortKey): string | number {
+	switch (key) {
+		case "sku":
+			return row.sku;
+		case "qty":
+			return row.qtyUnits;
+		default:
+			return row.name;
+	}
+}
+
 export default function StockPage() {
 	const me = useMe();
 	const stock = useStock();
+	const alerts = useStockAlerts();
 	const canAdjust = can(me.data?.roles ?? [], PERMISSIONS.INVENTORY_ADJUST);
+	const [query, setQuery] = useState("");
+	const [filter, setFilter] = useState<StockFilter>("all");
+	const { sort, toggle } = useSortState<StockSortKey>("name");
+
+	const lowProducts = useMemo(
+		() =>
+			new Set(
+				(alerts.data ?? [])
+					.filter((row) => row.low)
+					.map((row) => row.productId),
+			),
+		[alerts.data],
+	);
+
+	const rows = useMemo(() => {
+		const q = query.trim().toLowerCase();
+		const filtered = (stock.data ?? []).filter((row) => {
+			if (filter === "in" && row.qtyUnits <= 0) {
+				return false;
+			}
+			if (filter === "out" && row.qtyUnits > 0) {
+				return false;
+			}
+			if (filter === "low" && !lowProducts.has(row.productId)) {
+				return false;
+			}
+			if (q === "") {
+				return true;
+			}
+			return (
+				row.name.toLowerCase().includes(q) || row.sku.toLowerCase().includes(q)
+			);
+		});
+		return filtered.sort((left, right) =>
+			compareValues(
+				stockValue(left, sort.key),
+				stockValue(right, sort.key),
+				sort.direction,
+			),
+		);
+	}, [stock.data, query, filter, lowProducts, sort]);
 
 	return (
 		<div>
@@ -187,34 +262,84 @@ export default function StockPage() {
 							hint="Stock arrives through signed-off deliveries; managers can also record opening balances as adjustments."
 						/>
 					) : (
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>SKU</TableHead>
-									<TableHead>Product</TableHead>
-									<TableHead className="text-right">On hand</TableHead>
-									{canAdjust ? <TableHead /> : null}
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{(stock.data ?? []).map((row) => (
-									<TableRow key={row.productId}>
-										<TableCell className="font-medium tabular-nums">
-											{row.sku}
-										</TableCell>
-										<TableCell>{row.name}</TableCell>
-										<TableCell className="text-right">
-											<Qty value={row.qtyUnits} unit={row.saleUnitName} />
-										</TableCell>
-										{canAdjust ? (
-											<TableCell className="text-right">
-												<AdjustDialog row={row} />
-											</TableCell>
-										) : null}
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
+						<div className="space-y-4">
+							<div className="flex flex-wrap items-center gap-3">
+								<SearchInput
+									value={query}
+									onChange={setQuery}
+									label="Search stock"
+									placeholder="Search by name or SKU…"
+								/>
+								<NativeSelect
+									aria-label="Filter stock"
+									value={filter}
+									onChange={(event) =>
+										setFilter(event.target.value as StockFilter)
+									}
+								>
+									{(["all", "in", "low", "out"] as const).map((option) => (
+										<NativeSelectOption key={option} value={option}>
+											{STOCK_FILTER_LABELS[option]}
+										</NativeSelectOption>
+									))}
+								</NativeSelect>
+								<span className="ml-auto text-sm text-muted-foreground tabular-nums">
+									{rows.length} of {stock.data?.length ?? 0}
+								</span>
+							</div>
+							{rows.length === 0 ? (
+								<p className="rounded-lg border border-dashed px-6 py-10 text-sm text-muted-foreground">
+									No product matches this search.
+								</p>
+							) : (
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<SortableHead column="sku" sort={sort} onSort={toggle}>
+												SKU
+											</SortableHead>
+											<SortableHead column="name" sort={sort} onSort={toggle}>
+												Product
+											</SortableHead>
+											<SortableHead
+												column="qty"
+												sort={sort}
+												onSort={toggle}
+												className="text-right"
+											>
+												On hand
+											</SortableHead>
+											{canAdjust ? <TableHead /> : null}
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{rows.map((row) => (
+											<TableRow key={row.productId}>
+												<TableCell className="font-medium tabular-nums">
+													{row.sku}
+												</TableCell>
+												<TableCell>
+													{row.name}
+													{lowProducts.has(row.productId) ? (
+														<span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+															Low
+														</span>
+													) : null}
+												</TableCell>
+												<TableCell className="text-right">
+													<Qty value={row.qtyUnits} unit={row.saleUnitName} />
+												</TableCell>
+												{canAdjust ? (
+													<TableCell className="text-right">
+														<AdjustDialog row={row} />
+													</TableCell>
+												) : null}
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							)}
+						</div>
 					)}
 				</TabsContent>
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	useArchiveSupplier,
 	useCreateSupplier,
@@ -6,7 +6,14 @@ import {
 	useUpdateSupplier,
 } from "@/api/hooks";
 import type { Supplier } from "@/api/types";
-import { EmptyState, ErrorNote, Money, PageHeader } from "@/components/bits";
+import {
+	EmptyState,
+	ErrorNote,
+	Money,
+	PageHeader,
+	SearchInput,
+} from "@/components/bits";
+import { SortableHead } from "@/components/SortableHead";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -26,6 +33,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { compareValues, useSortState } from "@/hooks/use-sort";
 
 function SupplierDialog({
 	supplier,
@@ -117,10 +125,53 @@ function SupplierDialog({
 	);
 }
 
+type SupplierSortKey = "name" | "phone" | "note" | "owed";
+
+function supplierValue(
+	supplier: Supplier,
+	key: SupplierSortKey,
+): string | number | null {
+	switch (key) {
+		case "phone":
+			return supplier.phone;
+		case "note":
+			return supplier.note;
+		case "owed":
+			return Number(supplier.outstandingBalance);
+		default:
+			return supplier.name;
+	}
+}
+
 export default function SuppliersPage() {
 	const [showArchived, setShowArchived] = useState(false);
 	const suppliers = useSuppliers(showArchived);
 	const archive = useArchiveSupplier();
+	const [query, setQuery] = useState("");
+	const { sort, toggle } = useSortState<SupplierSortKey>("name");
+
+	const matches = useMemo(() => {
+		const q = query.trim().toLowerCase();
+		const digits = q.replace(/\D/g, "");
+		const filtered = (suppliers.data ?? []).filter((supplier) => {
+			if (q === "") {
+				return true;
+			}
+			return (
+				supplier.name.toLowerCase().includes(q) ||
+				(digits !== "" &&
+					(supplier.phone ?? "").replace(/\D/g, "").includes(digits)) ||
+				(supplier.note ?? "").toLowerCase().includes(q)
+			);
+		});
+		return filtered.sort((left, right) =>
+			compareValues(
+				supplierValue(left, sort.key),
+				supplierValue(right, sort.key),
+				sort.direction,
+			),
+		);
+	}, [suppliers.data, query, sort]);
 
 	return (
 		<div>
@@ -130,8 +181,14 @@ export default function SuppliersPage() {
 				action={<SupplierDialog trigger={<Button>New supplier</Button>} />}
 			/>
 
-			<div className="flex justify-end pb-3">
-				<label className="flex items-center gap-2 text-sm text-muted-foreground">
+			<div className="flex flex-wrap items-center gap-3 pb-3">
+				<SearchInput
+					value={query}
+					onChange={setQuery}
+					label="Search suppliers"
+					placeholder="Search by name, phone or note…"
+				/>
+				<label className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
 					<input
 						type="checkbox"
 						checked={showArchived}
@@ -147,19 +204,36 @@ export default function SuppliersPage() {
 					hint="Add the wholesalers and distributors you restock from; purchase orders start here."
 					action={<SupplierDialog trigger={<Button>New supplier</Button>} />}
 				/>
+			) : matches.length === 0 ? (
+				<p className="rounded-lg border border-dashed px-6 py-10 text-sm text-muted-foreground">
+					No supplier matches “{query}”.
+				</p>
 			) : (
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Supplier</TableHead>
-							<TableHead>Phone</TableHead>
-							<TableHead>Note</TableHead>
-							<TableHead className="text-right">Owed</TableHead>
+							<SortableHead column="name" sort={sort} onSort={toggle}>
+								Supplier
+							</SortableHead>
+							<SortableHead column="phone" sort={sort} onSort={toggle}>
+								Phone
+							</SortableHead>
+							<SortableHead column="note" sort={sort} onSort={toggle}>
+								Note
+							</SortableHead>
+							<SortableHead
+								column="owed"
+								sort={sort}
+								onSort={toggle}
+								className="text-right"
+							>
+								Owed
+							</SortableHead>
 							<TableHead />
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{(suppliers.data ?? []).map((supplier) => (
+						{matches.map((supplier) => (
 							<TableRow
 								key={supplier.id}
 								className={supplier.archived ? "opacity-50" : undefined}

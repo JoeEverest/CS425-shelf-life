@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	useCreateEmployee,
 	useEmployees,
@@ -7,7 +7,13 @@ import {
 	useUpdateEmployee,
 } from "@/api/hooks";
 import type { Employee } from "@/api/types";
-import { EmptyState, ErrorNote, PageHeader } from "@/components/bits";
+import {
+	EmptyState,
+	ErrorNote,
+	PageHeader,
+	SearchInput,
+} from "@/components/bits";
+import { SortableHead } from "@/components/SortableHead";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -20,6 +26,10 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
+	NativeSelect,
+	NativeSelectOption,
+} from "@/components/ui/native-select";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -27,7 +37,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { ROLE_LABELS, type Role } from "@/lib/access";
+import { compareValues, useSortState } from "@/hooks/use-sort";
+import { ROLE_LABELS, ROLES, type Role } from "@/lib/access";
 
 const ASSIGNABLE_ROLES: Role[] = [
 	"admin",
@@ -200,10 +211,64 @@ function EditRolesDialog({ employee }: { employee: Employee }) {
 	);
 }
 
+type EmployeeSortKey = "name" | "username" | "roles" | "status";
+type ActiveFilter = "all" | "active" | "inactive";
+
+function roleText(employee: Employee): string {
+	return employee.roles.map((role) => ROLE_LABELS[role]).join(" · ");
+}
+
+function employeeValue(employee: Employee, key: EmployeeSortKey): string {
+	switch (key) {
+		case "username":
+			return employee.username;
+		case "roles":
+			return roleText(employee);
+		case "status":
+			return employee.active ? "Active" : "Deactivated";
+		default:
+			return employee.name;
+	}
+}
+
 export default function EmployeesPage() {
 	const me = useMe();
 	const employees = useEmployees();
 	const setActive = useSetEmployeeActive();
+	const [query, setQuery] = useState("");
+	const [role, setRole] = useState<Role | "all">("all");
+	const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
+	const { sort, toggle } = useSortState<EmployeeSortKey>("name");
+
+	const rows = useMemo(() => {
+		const q = query.trim().toLowerCase();
+		const filtered = (employees.data ?? []).filter((employee) => {
+			if (role !== "all" && !employee.roles.includes(role)) {
+				return false;
+			}
+			if (activeFilter === "active" && !employee.active) {
+				return false;
+			}
+			if (activeFilter === "inactive" && employee.active) {
+				return false;
+			}
+			if (q === "") {
+				return true;
+			}
+			return (
+				employee.name.toLowerCase().includes(q) ||
+				employee.username.toLowerCase().includes(q) ||
+				roleText(employee).toLowerCase().includes(q)
+			);
+		});
+		return filtered.sort((left, right) =>
+			compareValues(
+				employeeValue(left, sort.key),
+				employeeValue(right, sort.key),
+				sort.direction,
+			),
+		);
+	}, [employees.data, query, role, activeFilter, sort]);
 
 	return (
 		<div>
@@ -220,56 +285,109 @@ export default function EmployeesPage() {
 					action={<InviteDialog />}
 				/>
 			) : (
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>Username</TableHead>
-							<TableHead>Roles</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{(employees.data ?? []).map((employee) => (
-							<TableRow
-								key={employee.id}
-								className={employee.active ? undefined : "opacity-50"}
-							>
-								<TableCell className="font-medium">{employee.name}</TableCell>
-								<TableCell className="text-muted-foreground">
-									{employee.username}
-								</TableCell>
-								<TableCell>
-									{employee.roles.map((role) => ROLE_LABELS[role]).join(" · ")}
-								</TableCell>
-								<TableCell>
-									{employee.active ? "Active" : "Deactivated"}
-								</TableCell>
-								<TableCell className="text-right">
-									<div className="flex justify-end gap-2">
-										<EditRolesDialog employee={employee} />
-										<Button
-											variant="ghost"
-											size="sm"
-											disabled={
-												setActive.isPending || employee.id === me.data?.id
-											}
-											onClick={() =>
-												setActive.mutate({
-													id: employee.id,
-													active: !employee.active,
-												})
-											}
-										>
-											{employee.active ? "Deactivate" : "Reactivate"}
-										</Button>
-									</div>
-								</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
+				<div className="space-y-4">
+					<div className="flex flex-wrap items-center gap-3">
+						<SearchInput
+							value={query}
+							onChange={setQuery}
+							label="Search employees"
+							placeholder="Search by name, username or role…"
+						/>
+						<NativeSelect
+							aria-label="Filter by role"
+							value={role}
+							onChange={(event) => setRole(event.target.value as Role | "all")}
+						>
+							<NativeSelectOption value="all">All roles</NativeSelectOption>
+							{ROLES.map((option) => (
+								<NativeSelectOption key={option} value={option}>
+									{ROLE_LABELS[option]}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+						<NativeSelect
+							aria-label="Filter by status"
+							value={activeFilter}
+							onChange={(event) =>
+								setActiveFilter(event.target.value as ActiveFilter)
+							}
+						>
+							<NativeSelectOption value="all">All statuses</NativeSelectOption>
+							<NativeSelectOption value="active">Active</NativeSelectOption>
+							<NativeSelectOption value="inactive">
+								Deactivated
+							</NativeSelectOption>
+						</NativeSelect>
+						<span className="ml-auto text-sm text-muted-foreground tabular-nums">
+							{rows.length} of {employees.data?.length ?? 0}
+						</span>
+					</div>
+
+					{rows.length === 0 ? (
+						<p className="rounded-lg border border-dashed px-6 py-10 text-sm text-muted-foreground">
+							No employee matches this search.
+						</p>
+					) : (
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<SortableHead column="name" sort={sort} onSort={toggle}>
+										Name
+									</SortableHead>
+									<SortableHead column="username" sort={sort} onSort={toggle}>
+										Username
+									</SortableHead>
+									<SortableHead column="roles" sort={sort} onSort={toggle}>
+										Roles
+									</SortableHead>
+									<SortableHead column="status" sort={sort} onSort={toggle}>
+										Status
+									</SortableHead>
+									<TableHead />
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{rows.map((employee) => (
+									<TableRow
+										key={employee.id}
+										className={employee.active ? undefined : "opacity-50"}
+									>
+										<TableCell className="font-medium">
+											{employee.name}
+										</TableCell>
+										<TableCell className="text-muted-foreground">
+											{employee.username}
+										</TableCell>
+										<TableCell>{roleText(employee)}</TableCell>
+										<TableCell>
+											{employee.active ? "Active" : "Deactivated"}
+										</TableCell>
+										<TableCell className="text-right">
+											<div className="flex justify-end gap-2">
+												<EditRolesDialog employee={employee} />
+												<Button
+													variant="ghost"
+													size="sm"
+													disabled={
+														setActive.isPending || employee.id === me.data?.id
+													}
+													onClick={() =>
+														setActive.mutate({
+															id: employee.id,
+															active: !employee.active,
+														})
+													}
+												>
+													{employee.active ? "Deactivate" : "Reactivate"}
+												</Button>
+											</div>
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					)}
+				</div>
 			)}
 			{setActive.isError ? (
 				<ErrorNote message={setActive.error.message} />

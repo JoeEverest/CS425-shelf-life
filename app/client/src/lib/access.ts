@@ -2,11 +2,12 @@ import {
 	PERMISSIONS,
 	type Permission,
 	ROLE_PERMISSIONS,
+	ROLES,
 	type Role,
 } from "shared";
 
 export type { Permission, Role };
-export { PERMISSIONS };
+export { PERMISSIONS, ROLES };
 
 export function can(roles: readonly Role[], permission: Permission): boolean {
 	return roles.some((role) =>

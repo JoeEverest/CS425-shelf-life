@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useCreateCustomer, useCustomers } from "@/api/hooks";
 import {
@@ -7,6 +8,7 @@ import {
 	PageHeader,
 	SearchInput,
 } from "@/components/bits";
+import { CustomerInvoicesSheet } from "@/components/CustomerInvoicesSheet";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -92,6 +94,7 @@ function NewCustomerDialog() {
 export default function CustomersPage() {
 	const customers = useCustomers();
 	const [query, setQuery] = useState("");
+	const [viewing, setViewing] = useState<string | null>(null);
 
 	const matches = useMemo(
 		() =>
@@ -105,7 +108,7 @@ export default function CustomersPage() {
 		<div>
 			<PageHeader
 				title="Customers"
-				description="Who buys on credit and what they owe. Payments are recorded against invoices."
+				description="Who buys on credit and what they owe. Open a customer to see their invoices and record a payment."
 				action={<NewCustomerDialog />}
 			/>
 
@@ -134,11 +137,16 @@ export default function CustomersPage() {
 									<TableHead>Name</TableHead>
 									<TableHead>Phone</TableHead>
 									<TableHead className="text-right">Owes</TableHead>
+									<TableHead className="w-8" />
 								</TableRow>
 							</TableHeader>
 							<TableBody>
 								{matches.map((customer) => (
-									<TableRow key={customer.id}>
+									<TableRow
+										key={customer.id}
+										className="cursor-pointer"
+										onClick={() => setViewing(customer.id)}
+									>
 										<TableCell className="font-medium">
 											{customer.name}
 										</TableCell>
@@ -148,6 +156,15 @@ export default function CustomersPage() {
 										<TableCell className="text-right">
 											<Money value={customer.outstandingBalance} />
 										</TableCell>
+										<TableCell>
+											<ChevronRight
+												aria-hidden
+												className="size-4 text-muted-foreground"
+											/>
+											<span className="sr-only">
+												Invoices for {customer.name}
+											</span>
+										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
@@ -155,6 +172,15 @@ export default function CustomersPage() {
 					)}
 				</div>
 			)}
+
+			<CustomerInvoicesSheet
+				customerId={viewing}
+				onOpenChange={(open) => {
+					if (!open) {
+						setViewing(null);
+					}
+				}}
+			/>
 		</div>
 	);
 }

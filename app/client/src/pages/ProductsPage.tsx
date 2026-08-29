@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	useArchiveProduct,
 	useCategories,
@@ -17,7 +17,9 @@ import {
 	Money,
 	PageHeader,
 	Qty,
+	SearchInput,
 } from "@/components/bits";
+import { SortableHead } from "@/components/SortableHead";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -42,6 +44,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { compareValues, useSortState } from "@/hooks/use-sort";
 import { can, PERMISSIONS } from "@/lib/access";
 
 function CreateProductDialog() {
@@ -308,12 +311,111 @@ function PriceDialog({ product }: { product: Product }) {
 	);
 }
 
+type ProductSortKey =
+	| "sku"
+	| "name"
+	| "category"
+	| "stock"
+	| "price"
+	| "status";
+
+type StatusFilter = "active" | "published" | "draft" | "archived" | "all";
+
+const STATUS_LABELS: Record<StatusFilter, string> = {
+	active: "Active",
+	published: "Published",
+	draft: "Draft",
+	archived: "Archived",
+	all: "All statuses",
+};
+
+function productStatus(product: Product): string {
+	if (product.archived) {
+		return "Archived";
+	}
+	return product.published ? "Published" : "Draft";
+}
+
+function productValue(
+	product: Product,
+	key: ProductSortKey,
+): string | number | null {
+	switch (key) {
+		case "sku":
+			return product.sku;
+		case "category":
+			return product.categoryName;
+		case "stock":
+			return product.qtyUnits;
+		case "price":
+			return product.price === null ? null : Number(product.price);
+		case "status":
+			return productStatus(product);
+		default:
+			return product.name;
+	}
+}
+
+function keepsStatus(product: Product, status: StatusFilter): boolean {
+	switch (status) {
+		case "published":
+			return product.published && !product.archived;
+		case "draft":
+			return !product.published && !product.archived;
+		case "archived":
+			return product.archived;
+		case "all":
+			return true;
+		default:
+			return !product.archived;
+	}
+}
+
 export default function ProductsPage() {
 	const me = useMe();
-	const [showArchived, setShowArchived] = useState(false);
-	const products = useProducts(showArchived);
+	const [status, setStatus] = useState<StatusFilter>("active");
+	const [category, setCategory] = useState("all");
+	const products = useProducts(status === "archived" || status === "all");
 	const publish = usePublishProduct();
 	const archive = useArchiveProduct();
+
+	const [query, setQuery] = useState("");
+	const { sort, toggle } = useSortState<ProductSortKey>("name");
+
+	const categoryNames = useMemo(() => {
+		const names = new Set<string>();
+		for (const product of products.data ?? []) {
+			names.add(product.categoryName);
+		}
+		return [...names].sort((left, right) => left.localeCompare(right));
+	}, [products.data]);
+
+	const matches = useMemo(() => {
+		const q = query.trim().toLowerCase();
+		const filtered = (products.data ?? []).filter((product) => {
+			if (!keepsStatus(product, status)) {
+				return false;
+			}
+			if (category !== "all" && product.categoryName !== category) {
+				return false;
+			}
+			if (q === "") {
+				return true;
+			}
+			return (
+				product.name.toLowerCase().includes(q) ||
+				product.sku.toLowerCase().includes(q) ||
+				product.categoryName.toLowerCase().includes(q)
+			);
+		});
+		return filtered.sort((left, right) =>
+			compareValues(
+				productValue(left, sort.key),
+				productValue(right, sort.key),
+				sort.direction,
+			),
+		);
+	}, [products.data, query, status, category, sort]);
 
 	const roles = me.data?.roles ?? [];
 	const canCreate = can(roles, PERMISSIONS.PRODUCTS_CREATE_PUBLISH);
@@ -328,15 +430,41 @@ export default function ProductsPage() {
 				action={canCreate ? <CreateProductDialog /> : undefined}
 			/>
 
-			<div className="flex justify-end pb-3">
-				<label className="flex items-center gap-2 text-sm text-muted-foreground">
-					<input
-						type="checkbox"
-						checked={showArchived}
-						onChange={(event) => setShowArchived(event.target.checked)}
-					/>
-					Show archived
-				</label>
+			<div className="flex flex-wrap items-center gap-3 pb-3">
+				<SearchInput
+					value={query}
+					onChange={setQuery}
+					label="Search products"
+					placeholder="Search by name, SKU or category…"
+				/>
+				<NativeSelect
+					aria-label="Filter by category"
+					value={category}
+					onChange={(event) => setCategory(event.target.value)}
+				>
+					<NativeSelectOption value="all">All categories</NativeSelectOption>
+					{categoryNames.map((name) => (
+						<NativeSelectOption key={name} value={name}>
+							{name}
+						</NativeSelectOption>
+					))}
+				</NativeSelect>
+				<NativeSelect
+					aria-label="Filter by status"
+					value={status}
+					onChange={(event) => setStatus(event.target.value as StatusFilter)}
+				>
+					{(["active", "published", "draft", "archived", "all"] as const).map(
+						(option) => (
+							<NativeSelectOption key={option} value={option}>
+								{STATUS_LABELS[option]}
+							</NativeSelectOption>
+						),
+					)}
+				</NativeSelect>
+				<span className="ml-auto text-sm text-muted-foreground tabular-nums">
+					{matches.length} of {products.data?.length ?? 0}
+				</span>
 			</div>
 
 			{products.data && products.data.length === 0 ? (
@@ -345,22 +473,48 @@ export default function ProductsPage() {
 					hint="Create the first product as a draft, publish it, then have a manager set its price — after that it can be sold."
 					action={canCreate ? <CreateProductDialog /> : undefined}
 				/>
+			) : matches.length === 0 ? (
+				<p className="rounded-lg border border-dashed px-6 py-10 text-sm text-muted-foreground">
+					No product matches “{query}”.
+				</p>
 			) : (
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>SKU</TableHead>
-							<TableHead>Product</TableHead>
-							<TableHead>Category</TableHead>
+							<SortableHead column="sku" sort={sort} onSort={toggle}>
+								SKU
+							</SortableHead>
+							<SortableHead column="name" sort={sort} onSort={toggle}>
+								Product
+							</SortableHead>
+							<SortableHead column="category" sort={sort} onSort={toggle}>
+								Category
+							</SortableHead>
 							<TableHead className="text-right">Breakdown</TableHead>
-							<TableHead className="text-right">Stock</TableHead>
-							<TableHead className="text-right">Price</TableHead>
-							<TableHead>Status</TableHead>
+							<SortableHead
+								column="stock"
+								sort={sort}
+								onSort={toggle}
+								className="text-right"
+							>
+								Stock
+							</SortableHead>
+							<SortableHead
+								column="price"
+								sort={sort}
+								onSort={toggle}
+								className="text-right"
+							>
+								Price
+							</SortableHead>
+							<SortableHead column="status" sort={sort} onSort={toggle}>
+								Status
+							</SortableHead>
 							<TableHead />
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{(products.data ?? []).map((product) => (
+						{matches.map((product) => (
 							<TableRow
 								key={product.id}
 								className={product.archived ? "opacity-50" : undefined}
@@ -383,13 +537,7 @@ export default function ProductsPage() {
 								<TableCell className="text-right">
 									<Money value={product.price} />
 								</TableCell>
-								<TableCell>
-									{product.archived
-										? "Archived"
-										: product.published
-											? "Published"
-											: "Draft"}
-								</TableCell>
+								<TableCell>{productStatus(product)}</TableCell>
 								<TableCell className="text-right">
 									<div className="flex justify-end gap-2">
 										{canCreate && !product.published && !product.archived ? (
