@@ -3,4 +3,3 @@ ops
 docs/adr/
 docs/*.html
 .env
-.impeccable.md
