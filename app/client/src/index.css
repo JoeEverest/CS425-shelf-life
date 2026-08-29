@@ -43,6 +43,9 @@
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
+	--color-ledger-cost: var(--ledger-cost);
+	--color-ledger-spend: var(--ledger-spend);
+	--color-ledger-kept: var(--ledger-kept);
 	--font-sans: "Geist Variable", sans-serif;
 	--font-heading: "Manrope Variable", sans-serif;
 	--font-display: "Bricolage Grotesque Variable", sans-serif;
@@ -84,6 +87,11 @@
 	--sidebar-accent-foreground: oklch(0.96 0.015 150);
 	--sidebar-border: oklch(0.35 0.04 168);
 	--sidebar-ring: oklch(0.82 0.11 155);
+	/* Ledger figures: money out is grey, money spent is dry amber, money kept
+	   is the one accent. Never three shades of the same green. */
+	--ledger-cost: oklch(0.68 0.012 160);
+	--ledger-spend: oklch(0.74 0.115 78);
+	--ledger-kept: oklch(0.46 0.09 165);
 }
 
 .dark {
@@ -118,6 +126,9 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.556 0 0);
+	--ledger-cost: oklch(0.5 0.012 160);
+	--ledger-spend: oklch(0.68 0.105 78);
+	--ledger-kept: oklch(0.7 0.12 165);
 }
 
 @layer base {

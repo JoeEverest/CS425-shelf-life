@@ -20,6 +20,7 @@ import {
 	SearchInput,
 } from "@/components/bits";
 import { SortableHead } from "@/components/SortableHead";
+import { StockDialog } from "@/components/StockDialog";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -421,6 +422,7 @@ export default function ProductsPage() {
 	const canCreate = can(roles, PERMISSIONS.PRODUCTS_CREATE_PUBLISH);
 	const canPrice = can(roles, PERMISSIONS.PRODUCTS_SET_PRICE);
 	const canArchive = can(roles, PERMISSIONS.PRODUCTS_ARCHIVE);
+	const canAdjustStock = can(roles, PERMISSIONS.INVENTORY_ADJUST);
 
 	return (
 		<div>
@@ -549,6 +551,19 @@ export default function ProductsPage() {
 											>
 												Publish
 											</Button>
+										) : null}
+										{canAdjustStock && !product.archived ? (
+											<StockDialog
+												productId={product.id}
+												name={product.name}
+												saleUnitName={product.saleUnitName}
+												qtyUnits={product.qtyUnits}
+												trigger={
+													<Button variant="outline" size="sm">
+														Stock
+													</Button>
+												}
+											/>
 										) : null}
 										{canPrice && !product.archived ? (
 											<PriceDialog product={product} />

@@ -40,30 +40,34 @@ function share(part: number, whole: number): string {
 	return `${((part / whole) * 100).toFixed(1)}%`;
 }
 
-function StatTile({
+function Figure({
 	label,
 	value,
-	hint,
+	note,
 	tone,
 }: {
 	label: string;
 	value: ReactNode;
-	hint: string;
-	tone?: "positive" | "negative";
+	note: string;
+	tone?: "kept" | "loss";
 }) {
 	return (
-		<div className="rounded-xl border bg-card px-4 py-3">
-			<p className="text-xs text-muted-foreground">{label}</p>
-			<p
+		<div className="bg-background py-4 sm:px-5 sm:first:pl-0">
+			<dt className="text-xs tracking-wide text-muted-foreground uppercase">
+				{label}
+			</dt>
+			<dd
 				className={
-					tone === "negative"
-						? "font-display text-xl font-semibold text-destructive"
-						: "font-display text-xl font-semibold"
+					tone === "loss"
+						? "font-display text-2xl font-semibold text-destructive tabular-nums"
+						: tone === "kept"
+							? "font-display text-2xl font-semibold text-ledger-kept tabular-nums"
+							: "font-display text-2xl font-semibold tabular-nums"
 				}
 			>
 				{value}
-			</p>
-			<p className="text-xs text-muted-foreground">{hint}</p>
+			</dd>
+			<dd className="text-sm text-muted-foreground">{note}</dd>
 		</div>
 	);
 }
@@ -75,114 +79,117 @@ function ReportCharts({ report }: { report: FinancialReport }) {
 	const expenses = Number(report.expensesTotal);
 	const net = Number(report.netProfit);
 
-	// The bar is scaled to whichever is larger, so a loss still fits.
+	// Scaled to whichever side is larger, so a loss still fits the bar.
 	const base = Math.max(revenue, cogs + expenses, 1);
-	const width = (amount: number) => `${(Math.max(amount, 0) / base) * 100}%`;
 
 	const categories = Object.entries(report.expensesByCategory)
 		.map(([key, amount]) => ({ key, amount: Number(amount) }))
 		.sort((left, right) => right.amount - left.amount);
 	const biggestCategory = categories[0]?.amount ?? 0;
 
+	// Grey for stock that left, amber for money spent, green for what stayed.
 	const segments = [
 		{
 			key: "cogs",
 			label: "Cost of goods",
 			amount: cogs,
-			className: "bg-chart-4",
+			fill: "bg-ledger-cost",
 		},
 		{
 			key: "expenses",
 			label: "Expenses",
 			amount: expenses,
-			className: "bg-chart-2",
+			fill: "bg-ledger-spend",
 		},
 		{
 			key: "net",
-			label: net < 0 ? "Loss" : "Net profit",
+			label: net < 0 ? "Shortfall" : "Kept",
 			amount: Math.abs(net),
-			className: net < 0 ? "bg-destructive" : "bg-chart-5",
+			fill: net < 0 ? "bg-destructive" : "bg-ledger-kept",
 		},
 	];
 
 	return (
-		<div className="space-y-6 pb-8">
-			<div className="grid gap-3 sm:grid-cols-3">
-				<StatTile
+		<div className="space-y-10 pb-10">
+			<dl className="grid gap-px border-y bg-border sm:grid-cols-3">
+				<Figure
 					label="Revenue"
 					value={<Money value={report.revenue} />}
-					hint={`${share(grossProfit, revenue)} kept as gross profit`}
+					note={`${share(grossProfit, revenue)} kept as gross profit`}
 				/>
-				<StatTile
+				<Figure
 					label="Gross profit"
 					value={<Money value={report.grossProfit} />}
-					hint={`cost of goods took ${share(cogs, revenue)}`}
+					note={`cost of goods took ${share(cogs, revenue)}`}
 				/>
-				<StatTile
+				<Figure
 					label="Net profit"
 					value={<Money value={report.netProfit} />}
-					tone={net < 0 ? "negative" : undefined}
-					hint={`expenses took ${share(expenses, revenue)} of revenue`}
+					tone={net < 0 ? "loss" : "kept"}
+					note={`expenses took ${share(expenses, revenue)} of revenue`}
 				/>
-			</div>
+			</dl>
 
-			<section className="space-y-3 rounded-xl border bg-muted/20 p-5">
+			<section className="space-y-3">
 				<h2 className="font-display text-sm font-semibold">
-					Where the revenue went
+					Where the money went
 				</h2>
-				<div className="flex h-6 w-full overflow-hidden rounded-full bg-muted">
+				<div className="flex h-7 w-full gap-px overflow-hidden rounded-sm bg-muted">
 					{segments.map((segment) =>
 						segment.amount > 0 ? (
 							<span
 								key={segment.key}
-								title={`${segment.label}: ${segment.amount.toFixed(2)}`}
-								style={{ width: width(segment.amount) }}
-								className={segment.className}
+								title={`${segment.label}: ${segment.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+								style={{ width: `${(segment.amount / base) * 100}%` }}
+								className={segment.fill}
 							/>
 						) : null,
 					)}
 				</div>
-				<div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+				<dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
 					{segments.map((segment) => (
-						<span key={segment.key} className="flex items-center gap-2">
-							<span className={`size-2.5 rounded-full ${segment.className}`} />
-							<span className="text-muted-foreground">{segment.label}</span>
-							<span className="font-medium tabular-nums">
+						<div key={segment.key} className="flex items-baseline gap-2">
+							<span
+								aria-hidden
+								className={`size-2.5 translate-y-px rounded-xs ${segment.fill}`}
+							/>
+							<dt className="text-muted-foreground">{segment.label}</dt>
+							<dd className="font-medium tabular-nums">
 								<Money value={segment.amount.toFixed(2)} />
-							</span>
-							<span className="text-xs text-muted-foreground tabular-nums">
+							</dd>
+							<dd className="text-xs text-muted-foreground tabular-nums">
 								{share(segment.amount, revenue)}
-							</span>
-						</span>
+							</dd>
+						</div>
 					))}
-				</div>
+				</dl>
 				{net < 0 ? (
 					<p className="text-sm text-destructive">
-						Costs exceeded revenue in this period.
+						Costs ran past revenue in this period.
 					</p>
 				) : null}
 			</section>
 
 			{categories.length > 0 ? (
-				<section className="space-y-3 rounded-xl border bg-muted/20 p-5">
+				<section className="space-y-3">
 					<h2 className="font-display text-sm font-semibold">
 						Expenses by category
 					</h2>
 					<div className="space-y-2">
 						{categories.map((entry) => (
-							<div key={entry.key} className="flex items-center gap-3">
-								<span className="w-24 shrink-0 text-sm text-muted-foreground">
+							<div key={entry.key} className="flex items-center gap-4">
+								<span className="w-28 shrink-0 text-sm text-muted-foreground">
 									{CATEGORY_LABELS[entry.key] ?? entry.key}
 								</span>
-								<span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+								<span className="h-1.5 flex-1 rounded-full bg-muted">
 									<span
-										className="block h-full rounded-full bg-chart-2"
+										className="block h-full rounded-full bg-ledger-spend"
 										style={{
 											width: `${biggestCategory === 0 ? 0 : (entry.amount / biggestCategory) * 100}%`,
 										}}
 									/>
 								</span>
-								<span className="w-24 shrink-0 text-right text-sm tabular-nums">
+								<span className="w-28 shrink-0 text-right text-sm tabular-nums">
 									<Money value={entry.amount.toFixed(2)} />
 								</span>
 							</div>

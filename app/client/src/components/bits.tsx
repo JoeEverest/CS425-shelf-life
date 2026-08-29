@@ -58,12 +58,21 @@ export function SearchInput({
 	);
 }
 
+const moneyFormat = new Intl.NumberFormat(undefined, {
+	minimumFractionDigits: 2,
+	maximumFractionDigits: 2,
+});
+
 export function Money({ value }: { value: string | number | null }) {
 	const { data: store } = useStore();
 	if (value === null) {
 		return <span className="text-muted-foreground">—</span>;
 	}
-	const amount = typeof value === "number" ? value.toFixed(2) : value;
+	const numeric = typeof value === "number" ? value : Number(value);
+	// Amounts arrive as decimal strings; keep the raw text if one is not a number.
+	const amount = Number.isFinite(numeric)
+		? moneyFormat.format(numeric)
+		: String(value);
 	return (
 		<span className="tabular-nums">
 			{store ? `${store.currency} ${amount}` : amount}

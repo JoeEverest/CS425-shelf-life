@@ -300,7 +300,9 @@ export default function SalesPage() {
 								className="group flex flex-1 flex-col items-center gap-1.5 disabled:opacity-40"
 							>
 								<span className="text-xs text-muted-foreground tabular-nums">
-									{entry.revenue > 0 ? entry.revenue.toFixed(0) : ""}
+									{entry.revenue > 0
+										? Math.round(entry.revenue).toLocaleString()
+										: ""}
 								</span>
 								<span className="flex h-24 w-full items-end">
 									<span
