@@ -44,13 +44,16 @@ export default function AppShell() {
 	}
 
 	const roles = me.data.roles;
+	const fullBleed = location.pathname.startsWith("/sell");
 	const sections = NAV_SECTIONS.map((section) => ({
 		...section,
 		items: section.items.filter((item) => can(roles, item.permission)),
 	})).filter((section) => section.items.length > 0);
 
 	return (
-		<SidebarProvider>
+		<SidebarProvider
+			className={fullBleed ? "h-svh overflow-hidden" : undefined}
+		>
 			<Sidebar collapsible="icon">
 				<SidebarHeader className="px-4 pt-5 pb-2 group-data-[collapsible=icon]:px-2">
 					<div className="flex items-baseline gap-2 overflow-hidden">
@@ -115,12 +118,20 @@ export default function AppShell() {
 					</div>
 				</SidebarFooter>
 			</Sidebar>
-			<SidebarInset>
-				<div className="flex items-center gap-2 border-b px-4 py-2 md:hidden">
+			<SidebarInset
+				className={fullBleed ? "h-svh min-h-0 overflow-hidden" : undefined}
+			>
+				<div className="flex shrink-0 items-center gap-2 border-b px-4 py-2 md:hidden">
 					<SidebarTrigger aria-label="Toggle navigation" />
 					<span className="font-display font-semibold">ShelfLife</span>
 				</div>
-				<main className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8">
+				<main
+					className={
+						fullBleed
+							? "flex min-h-0 flex-1 flex-col"
+							: "mx-auto w-full max-w-6xl px-4 py-8 md:px-8"
+					}
+				>
 					<Outlet />
 				</main>
 			</SidebarInset>

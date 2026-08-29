@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useCreateCustomer, useCustomers } from "@/api/hooks";
 import {
-	useCreateCustomer,
-	useCustomers,
-	useInvoices,
-	useRecordPayment,
-} from "@/api/hooks";
-import type { Invoice } from "@/api/types";
-import { EmptyState, ErrorNote, Money, PageHeader } from "@/components/bits";
+	EmptyState,
+	ErrorNote,
+	Money,
+	PageHeader,
+	SearchInput,
+} from "@/components/bits";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -26,7 +26,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { matchesNameOrPhone } from "@/lib/search";
 
 function NewCustomerDialog() {
 	const [open, setOpen] = useState(false);
@@ -89,90 +89,44 @@ function NewCustomerDialog() {
 	);
 }
 
-function PaymentDialog({ invoice }: { invoice: Invoice }) {
-	const [open, setOpen] = useState(false);
-	const pay = useRecordPayment();
-	const [amount, setAmount] = useState("");
-
-	return (
-		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger asChild>
-				<Button variant="outline" size="sm">
-					Record payment
-				</Button>
-			</DialogTrigger>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle className="font-display">
-						Payment — {invoice.customerName}
-					</DialogTitle>
-					<DialogDescription>
-						Outstanding on this invoice: <Money value={invoice.balance} />. A
-						payment can't exceed the balance.
-					</DialogDescription>
-				</DialogHeader>
-				<form
-					className="flex items-end gap-3"
-					onSubmit={(event) => {
-						event.preventDefault();
-						pay.mutate(
-							{ invoiceId: invoice.id, amount },
-							{
-								onSuccess: () => {
-									setOpen(false);
-									setAmount("");
-								},
-							},
-						);
-					}}
-				>
-					<Field className="flex-1">
-						<FieldLabel htmlFor="amount">Amount</FieldLabel>
-						<Input
-							id="amount"
-							required
-							inputMode="decimal"
-							pattern="\d+\.\d{2}"
-							className="tabular-nums"
-							value={amount}
-							onChange={(event) => setAmount(event.target.value)}
-						/>
-					</Field>
-					<Button type="submit" disabled={pay.isPending}>
-						Record
-					</Button>
-				</form>
-				{pay.isError ? <ErrorNote message={pay.error.message} /> : null}
-			</DialogContent>
-		</Dialog>
-	);
-}
-
 export default function CustomersPage() {
 	const customers = useCustomers();
-	const invoices = useInvoices();
+	const [query, setQuery] = useState("");
+
+	const matches = useMemo(
+		() =>
+			(customers.data ?? []).filter((customer) =>
+				matchesNameOrPhone(customer.name, customer.phone, query),
+			),
+		[customers.data, query],
+	);
 
 	return (
 		<div>
 			<PageHeader
 				title="Customers"
-				description="Who buys on credit, what they owe, and payments against their invoices."
+				description="Who buys on credit and what they owe. Payments are recorded against invoices."
 				action={<NewCustomerDialog />}
 			/>
 
-			<Tabs defaultValue="customers">
-				<TabsList>
-					<TabsTrigger value="customers">Customers</TabsTrigger>
-					<TabsTrigger value="invoices">Invoices</TabsTrigger>
-				</TabsList>
-
-				<TabsContent value="customers" className="pt-4">
-					{customers.data && customers.data.length === 0 ? (
-						<EmptyState
-							title="No customers yet"
-							hint="Add a customer, or create one during a credit sale at the counter."
-							action={<NewCustomerDialog />}
-						/>
+			{customers.data && customers.data.length === 0 ? (
+				<EmptyState
+					title="No customers yet"
+					hint="Add a customer, or create one during a credit sale at the counter."
+					action={<NewCustomerDialog />}
+				/>
+			) : (
+				<div className="space-y-4">
+					<SearchInput
+						value={query}
+						onChange={setQuery}
+						label="Search customers"
+						placeholder="Search by name or phone…"
+					/>
+					{matches.length === 0 ? (
+						<p className="rounded-lg border border-dashed px-6 py-10 text-sm text-muted-foreground">
+							No customer matches “{query}”.
+						</p>
 					) : (
 						<Table>
 							<TableHeader>
@@ -183,7 +137,7 @@ export default function CustomersPage() {
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{(customers.data ?? []).map((customer) => (
+								{matches.map((customer) => (
 									<TableRow key={customer.id}>
 										<TableCell className="font-medium">
 											{customer.name}
@@ -199,54 +153,8 @@ export default function CustomersPage() {
 							</TableBody>
 						</Table>
 					)}
-				</TabsContent>
-
-				<TabsContent value="invoices" className="pt-4">
-					{invoices.data && invoices.data.length === 0 ? (
-						<EmptyState
-							title="No invoices yet"
-							hint="Credit sales raise invoices; they'll show here with their outstanding balance."
-						/>
-					) : (
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Issued</TableHead>
-									<TableHead>Customer</TableHead>
-									<TableHead className="text-right">Total</TableHead>
-									<TableHead className="text-right">Balance</TableHead>
-									<TableHead />
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{(invoices.data ?? []).map((invoice) => (
-									<TableRow key={invoice.id}>
-										<TableCell className="tabular-nums text-muted-foreground">
-											{new Date(invoice.issuedAt).toLocaleDateString()}
-										</TableCell>
-										<TableCell>{invoice.customerName}</TableCell>
-										<TableCell className="text-right">
-											<Money value={invoice.total} />
-										</TableCell>
-										<TableCell className="text-right">
-											<Money value={invoice.balance} />
-										</TableCell>
-										<TableCell className="text-right">
-											{Number(invoice.balance) > 0 ? (
-												<PaymentDialog invoice={invoice} />
-											) : (
-												<span className="text-xs text-muted-foreground">
-													Paid
-												</span>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					)}
-				</TabsContent>
-			</Tabs>
+				</div>
+			)}
 		</div>
 	);
 }

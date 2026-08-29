@@ -395,10 +395,11 @@ export function useStockAlerts() {
 
 // ---- customers, invoices, payments ------------------------------------------
 
-export function useCustomers() {
+export function useCustomers(enabled = true) {
 	return useQuery<Customer[], ApiError>({
 		queryKey: ["customers"],
 		queryFn: () => api.get<Customer[]>("/api/customers"),
+		enabled,
 	});
 }
 

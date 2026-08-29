@@ -1,5 +1,7 @@
+import { Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { useStore } from "@/api/hooks";
+import { Input } from "@/components/ui/input";
 
 export function PageHeader({
 	title,
@@ -24,6 +26,35 @@ export function PageHeader({
 			</div>
 			{action}
 		</header>
+	);
+}
+
+export function SearchInput({
+	value,
+	onChange,
+	label,
+	placeholder,
+}: {
+	value: string;
+	onChange: (value: string) => void;
+	label: string;
+	placeholder: string;
+}) {
+	return (
+		<div className="relative w-full max-w-sm">
+			<Search
+				aria-hidden
+				className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+			/>
+			<Input
+				type="search"
+				aria-label={label}
+				placeholder={placeholder}
+				value={value}
+				onChange={(event) => onChange(event.target.value)}
+				className="pl-9"
+			/>
+		</div>
 	);
 }
 
