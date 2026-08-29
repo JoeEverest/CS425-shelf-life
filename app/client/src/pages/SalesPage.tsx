@@ -7,6 +7,7 @@ import {
 	TrendingUp,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import { useSale, useSales } from "@/api/hooks";
 import type { SaleSummary } from "@/api/types";
 import { EmptyState, ErrorNote, Money, PageHeader } from "@/components/bits";
@@ -42,6 +43,17 @@ function sumField(
 	field: "total" | "totalProfit",
 ): number {
 	return sales.reduce((sum, sale) => sum + Number(sale[field]), 0);
+}
+
+/** Reads ?day=YYYY-MM-DD, falling back to today for a missing or future date. */
+function dayFromParam(value: string | null): Date {
+	const today = startOfDay(new Date());
+	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return today;
+	}
+	const [year, month, date] = value.split("-").map(Number);
+	const parsed = new Date(year, month - 1, date);
+	return Number.isNaN(parsed.getTime()) || parsed > today ? today : parsed;
 }
 
 function salesOn(sales: SaleSummary[], day: Date): SaleSummary[] {
@@ -158,7 +170,9 @@ function SaleLines({ saleId }: { saleId: string }) {
 }
 
 export default function SalesPage() {
-	const [day, setDay] = useState(() => startOfDay(new Date()));
+	const [searchParams] = useSearchParams();
+	// ?day=YYYY-MM-DD seeds the opening day, so other pages can link to a date.
+	const [day, setDay] = useState(() => dayFromParam(searchParams.get("day")));
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 
 	const today = startOfDay(new Date());
